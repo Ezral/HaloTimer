@@ -15,6 +15,10 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,6 +26,14 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class HaloSmokeTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
+
+    @After fun stopOverlaysBeforeEspressoTearDown() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as HaloApplication
+        runBlocking { withContext(Dispatchers.Main) {
+            app.coordinator.execute(Command.StopAll)
+            app.stopService(android.content.Intent(app, com.ezral.halo.runtime.HaloRuntimeService::class.java))
+        } }
+    }
 
     private fun shell(command: String) {
         ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
@@ -211,7 +223,8 @@ class HaloSmokeTest {
     }
 
     private fun screenshot(name: String) {
-        rule.waitForIdle()
+        // Animated overlay windows deliberately never become idle. Capture after the explicit
+        // state/visibility checks instead of asking Espresso to stop their frame callbacks.
         // Capture as the shell directly into shared emulator output, outside app uninstall cleanup.
         shell("mkdir -p /sdcard/Download/halo-qa")
         shell("screencap -p /sdcard/Download/halo-qa/$name.png")
