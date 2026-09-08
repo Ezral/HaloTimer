@@ -48,3 +48,14 @@ The full-display/gap/background-launch regression passed on the Android 15 emula
 Native checks cover full-display overlay bounds, three 4dp lane cores separated by transparent 2dp gaps, touch-through, MM:SS adjustment, themes, automatic return to Home, drag-to-dock, drag inward to expand, floating pause/reset/play and editor reset. Eight screenshots were collected. Visual review confirmed stacked dock digits and a label outside the half-circle, light floating controls over Home, the persistent header and corrected dark status-bar icons. Rotation is disabled by the emulator's reduced-animation setting; animated label motion, right-edge docking, gesture-navigation conflicts and native backdrop blur still require physical-device review.
 
 [Download the tested APK artifact](https://github.com/Ezral/HaloTimer/actions/runs/34213996335/artifacts/10051124728). Expanded pills request native background blur only when supported; the dock uses a circular translucent tint and shadow. Full bounds do not override the normal system UI stacking order. The Samsung/OEM idle, haptic, accessibility and production-release gates above remain open.
+
+
+## Verified alpha 04 UI and runtime — 767ee93
+
+[Run 34237927322](https://github.com/Ezral/HaloTimer/actions/runs/34237927322) passed all 38 JVM tests, Android lint (zero errors), debug assembly and the Android 15 native regression (1 test, zero failures/errors/skips, 56.08 seconds).
+
+The native flow covers full-display bounds, lane gaps, deterministic animation frames and the Orbit seam, MM:SS carry, theme changes, Morse/color/repeat editors, background launch, docking/expanding, long-press Play/Pause and release-to-cancel, floating pause/reset/play, temporary menu hiding, real timer completion with moving edge pixels, dismissal, and the opt-in menu-entry Stop all policy. Screenshots are in [the native artifact](https://github.com/Ezral/HaloTimer/actions/runs/34237927322/artifacts/10061102143).
+
+Screenshot review confirmed the centered mono dock digits, rotating single label, separate evenly spaced action bubbles and the scrolled menu beneath its persistent header. Morph animation feel and OEM blur/hardware vibration still need phone review.
+
+A packaging review found that earlier CI runs did not actually cache AGP's generated debug key. The follow-up change explicitly pins AGP to the keystore path prepared and cached by CI. Screenshot review also normalized the shared bar/dock RGB tint: clipping a two-color gradient to a half-circle had made the same recipe look different. The tested timer and gesture implementations are unchanged. Existing ephemeral-key APKs may require uninstalling before installation, which clears local data. In-place development updates depend on retaining that cache; production signing remains a separate release gate.

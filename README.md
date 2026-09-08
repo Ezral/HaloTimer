@@ -85,3 +85,6 @@ Poppins is bundled under the SIL Open Font License; see `app/src/main/assets/lic
 The bar and dock share the same tint recipe. The bar shows only the countdown, with JetBrains Mono used for all in-app MM:SS digits; Poppins remains the menu typeface. Docking/undocking morphs the glass between the pill and its edge bubble. Long-press actions pop onto equal-angle points around the dock with no connecting lines. Reduced motion skips these transitions. The persistent menu header casts a soft shadow over scrolling cards.
 
 JetBrains Mono is bundled unchanged under OFL; its license is in `app/src/main/assets/licenses/JetBrainsMono-OFL.txt`.
+
+
+CI now explicitly points AGP at the cached development keystore. Earlier builds did not actually save that key, so Android may reject an in-place update from those APKs. A one-time uninstall clears local timers/settings; subsequent builds can update in place while the development-key cache is retained. Durable production signing is still a separate release task.

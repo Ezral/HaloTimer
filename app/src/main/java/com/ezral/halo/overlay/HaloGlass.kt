@@ -7,12 +7,13 @@ import android.graphics.Shader
 
 /** One tint recipe for the bar, dock and their shared morphing surface. */
 internal object HaloGlass {
-    fun colors(line: Int): IntArray = intArrayOf(
-        Color.argb(238, Color.red(line), Color.green(line), Color.blue(line)),
-        Color.argb(220, (Color.red(line) * .38f + 255 * .62f).toInt(),
-            (Color.green(line) * .38f + 255 * .62f).toInt(),
-            (Color.blue(line) * .38f + 255 * .62f).toInt()),
-    )
+    fun colors(line: Int): IntArray {
+        // Use one RGB tint: clipping a gradient to half a circle otherwise changes its apparent hue.
+        val r = (Color.red(line) * .62f + 255 * .38f).toInt()
+        val g = (Color.green(line) * .62f + 255 * .38f).toInt()
+        val b = (Color.blue(line) * .62f + 255 * .38f).toInt()
+        return intArrayOf(Color.argb(238, r, g, b), Color.argb(220, r, g, b))
+    }
     fun shader(bounds: RectF, line: Int) = LinearGradient(bounds.left, bounds.top,
         bounds.right, bounds.bottom, colors(line), null, Shader.TileMode.CLAMP)
 }

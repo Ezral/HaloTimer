@@ -26,6 +26,8 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: halo-debug-signing-v1
+      - name: Pin the development signing key
+        run: bash .github/scripts/debug-signing.sh
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - name: Install SDK
@@ -61,6 +63,8 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: halo-debug-signing-v1
+      - name: Pin the development signing key
+        run: bash .github/scripts/debug-signing.sh
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - name: Compile test APKs before booting the emulator
