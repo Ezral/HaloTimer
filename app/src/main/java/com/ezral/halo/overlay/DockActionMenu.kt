@@ -12,7 +12,7 @@ import kotlin.math.*
 /** Three equally spaced bubbles; release retracts them along the same paths into the dock. */
 class DockActionMenu(context: Context, private val side: DockSide, private val color: Int,
     private val reducedMotion: Boolean = false, private val status: Status = Status.RUNNING) : View(context) {
-    enum class Action { PRIMARY, RESET, HIDE }
+    enum class Action { PRIMARY, RESET, STOP }
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val font = resources.getFont(R.font.poppins_medium)
@@ -44,19 +44,18 @@ class DockActionMenu(context: Context, private val side: DockSide, private val c
         val retract=1-exit*exit*(3-2*exit)
         Action.entries.forEach { action ->
             val t=if(reducedMotion) 1f else ((elapsed-action.ordinal*25)/250f).coerceIn(0f,1f)
-            val spring=(if(t==1f) 1f else 1-exp(-8*t)*(cos(10*t)+.8f*sin(10*t)))*retract
+            val spring=t*t*(3-2*t)*retract
             val dest=center(action); val ox=(if(side==DockSide.LEFT) 24 else 144)*d
             canvas.save(); canvas.translate(ox+(dest.x-ox)*spring,144*d+(dest.y-144*d)*spring)
             canvas.scale(spring.coerceAtLeast(.001f),spring.coerceAtLeast(.001f))
-            paint.color=if(selected==action) HaloGlass.color(color) else Color.rgb(244,247,253)
-            paint.alpha=(255*(t*4).coerceIn(0f,1f)*retract).toInt()
-            canvas.drawCircle(0f,0f,28*d,paint)
-            paint.color=0xFF303644.toInt(); paint.alpha=(255*retract).toInt()
+            paint.color=HaloGlass.color(color)
+            paint.alpha=255
+            canvas.drawCircle(0f,0f,(if(selected==action) 31 else 28)*d,paint)
+            paint.color=HaloGlass.foreground(color)
             paint.textAlign=Paint.Align.CENTER; paint.typeface=Typeface.DEFAULT; paint.textSize=23*d
-            val primary=when(status) { Status.RUNNING -> "Ⅱ" to "Pause"; Status.COMPLETED,Status.INTERRUPTED -> "■" to "Stop"; else -> "▶" to "Start" }
-            val (icon,label)=when(action) { Action.PRIMARY -> primary; Action.RESET -> "↺" to "Reset"; Action.HIDE -> "⌄" to "Hide" }
-            canvas.drawText(icon,0f,d,paint); paint.typeface=font; paint.textSize=10*d
-            canvas.drawText(label,0f,17*d,paint); canvas.restore()
+            val icon=when(action) { Action.PRIMARY -> if(status==Status.RUNNING) "Ⅱ" else "▶"; Action.RESET -> "↺"; Action.STOP -> "■" }
+            val baseline=-(paint.fontMetrics.ascent+paint.fontMetrics.descent)/2
+            canvas.drawText(icon,0f,baseline,paint); canvas.restore()
         }
         if(exit>=1f) { closeDone?.let { closeDone=null; post { it() } } }
         else if(isAttachedToWindow && !reducedMotion && (closingAt!=0L || elapsed<330)) postInvalidateOnAnimation()

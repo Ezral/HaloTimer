@@ -67,3 +67,10 @@ Attach evidence for R01–R24 to STATUS.md. Resolve failures, profile frame paci
 - Long-press either dock: three evenly spaced actions emerge. Release on/off a target; bubbles retract before the selected action executes. Repeat quickly, enter the menu during retraction, stop all, revoke overlay permission, and rotate the device; no abandoned windows or delayed restart should remain.
 - Reduced motion removes the animated attachment and retraction; controls remain usable.
 - Transition target duration is 240 ms, with vsync-driven redraw; physical-device smoothness still needs validation.
+
+## Alpha 06: solid edge dock and Stop
+
+- Drag either bar toward each edge: the single opaque body extends subtly, then merges into a broad 44dp by 164dp contour. Pull inward and release at short and long distances. No second layer, seam, blur, stroke, shadow or overshoot should appear.
+- Long-press either dock, select each of the three icons, and release off-target. Bubbles retract in 190ms. Stop clears the session, edge alert and repeating vibration; another timer continues unchanged. Reset rewinds and pauses; the primary icon starts/resumes or pauses.
+- Watch a short and long sequence label on both edges. Each glyph follows the circular tangent at 60 degrees/second. One opaque string enters, travels around the exposed arc, fully exits behind the physical edge, then begins again. Hold the pulled-out circle: its 360-degree rotation must be continuous.
+- Test 60Hz and high-refresh displays, both navigation modes and reduced motion. Inspect screen recordings frame-by-frame for morph seams and glyph clipping. Emulator checks cannot certify device frame pacing.

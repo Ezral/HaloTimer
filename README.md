@@ -92,3 +92,5 @@ CI now explicitly points AGP at the cached development keystore. Earlier builds 
 ### Alpha05 motion refinement
 
 Flat tinted floating surfaces with no circular progress border; compact Primary/Reset/Hide controls; faster vsync-driven dock labels with visible-arc looping; 240 ms docking morphs; live edge attachment while dragging; and retracting three-action dock menus. A full circle shown while pulling the dock uses the full orbit. Marketing recordings are now explicitly launched through the Marketing capture workflow, rather than every test edit.
+
+Alpha 06 revises the existing overlay: three playback/reset/stop icons, opaque timer-colored surfaces, a single shallow edge contour, controlled 220ms docking morphs, and circular text that passes fully behind the display edge before re-entering. Stop uses the existing persisted cancellation path, including alarms and repeating haptics. No timer scheduling, permission, editor or sequence architecture was rebuilt.

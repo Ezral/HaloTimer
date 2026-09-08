@@ -131,7 +131,8 @@ class HaloSmokeTest {
     private fun checkGlassDockAndPlayback() {
         val c = (activity.application as HaloApplication).coordinator
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
-        assertNotNull("Compact bar exposes Hide", overlayNode("Hide Timer A"))
+        assertNotNull("Compact bar exposes Stop", overlayNode("Stop Timer A"))
+        assertNull("Hide was removed", overlayNode("Hide Timer A"))
         assertNull("No settings button in compact bar", overlayNode("Open Halo settings"))
         val bounds = android.graphics.Rect()
         overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
@@ -168,6 +169,11 @@ class HaloSmokeTest {
         assertEquals(DockSide.LEFT, c.state.value.tracks[0].definition.dock)
         dockGesture(arcX(-55.0), arcY(-55.0))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
+        dockGesture(arcX(55.0), arcY(55.0))
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session == null && overlayNode("Tap or drag inward to expand")==null }
+        c.submit(Command.Start(setOf(0)))
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING && overlayNode("Tap or drag inward to expand")!=null }
+        SystemClock.sleep(300)
         // Pull the half-circle back into the screen, without touching system back-gesture territory.
         shell("input swipe ${(24 * density).toInt()} ${dockBounds.centerY()} ${(200 * density).toInt()} ${dockBounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.NONE && overlayNode("Pause Timer A") != null }
@@ -180,6 +186,23 @@ class HaloSmokeTest {
         assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
         overlayNode("Play Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
+        c.submit(Command.Activate(1,true)); c.submit(Command.Start(setOf(1)))
+        rule.waitUntil(5_000) { c.state.value.tracks[1].session?.status==Status.RUNNING }
+        overlayNode("Stop Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session==null && overlayNode("Stop Timer A")==null }
+        assertEquals("Stop leaves the parallel timer running",Status.RUNNING,c.state.value.tracks[1].session?.status)
+        c.submit(Command.Reset(1)); c.submit(Command.Start(setOf(0)))
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING }
+        rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock")!=null }
+        overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
+        val displayWidth=activity.resources.displayMetrics.widthPixels
+        shell("input swipe ${bounds.centerX()} ${bounds.centerY()} ${displayWidth-1} ${bounds.centerY()} 600")
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock==DockSide.RIGHT && overlayNode("Tap or drag inward to expand")!=null }
+        SystemClock.sleep(350)
+        screenshot("13-right-solid-dock")
+        // The same tangent rotation and contour must work on the mirrored edge.
+        shell("input swipe ${(displayWidth-24*density).toInt()} ${dockBounds.centerY()} ${(displayWidth-200*density).toInt()} ${dockBounds.centerY()} 600")
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock==DockSide.NONE }
     }
 
     private fun checkSettingsEditors() {

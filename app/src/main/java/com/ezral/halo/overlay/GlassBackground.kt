@@ -1,24 +1,24 @@
 package com.ezral.halo.overlay
 
-import android.graphics.Canvas
-import android.graphics.ColorFilter
-import android.graphics.Outline
-import android.graphics.PixelFormat
-import android.graphics.Rect
+import android.graphics.*
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
+import com.ezral.halo.core.DockSide
 
-/** Insets the glass shape without adding content padding to a floating Window. */
-internal class GlassBackground(color: Int, radius: Float, private val inset: Int = 0) : Drawable() {
-    private val shape = GradientDrawable().apply { setColor(color); cornerRadius = radius }
-    override fun onBoundsChange(bounds: Rect) {
-        shape.setBounds(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
+/** One opaque pill; its near edge extends by four pixels as the pointer approaches the edge. */
+internal class GlassBackground(color: Int, private val radius: Float) : Drawable() {
+    private val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color=HaloGlass.color(color) }
+    private val rect=RectF()
+    private val path=Path()
+    var approach=0f
+    var side=DockSide.NONE
+    override fun draw(canvas: Canvas) {
+        val inset=radius/7
+        rect.set(bounds.left+inset*(if(side==DockSide.LEFT) 1-approach else 1f),bounds.top.toFloat(),
+            bounds.right-inset*(if(side==DockSide.RIGHT) 1-approach else 1f),bounds.bottom.toFloat())
+        SurfaceContour.path(path,SurfaceContour.points(rect)); canvas.drawPath(path,paint)
     }
-    override fun draw(canvas: Canvas) = shape.draw(canvas)
-    override fun getOutline(outline: Outline) = shape.getOutline(outline)
     override fun getPadding(padding: Rect): Boolean { padding.setEmpty(); return false }
-    override fun setAlpha(alpha: Int) { shape.alpha = alpha; invalidateSelf() }
-    override fun setColorFilter(colorFilter: ColorFilter?) { shape.colorFilter = colorFilter; invalidateSelf() }
-    @Deprecated("Deprecated in Android")
-    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+    override fun setAlpha(alpha: Int) { paint.alpha=alpha; invalidateSelf() }
+    override fun setColorFilter(colorFilter: ColorFilter?) { paint.colorFilter=colorFilter; invalidateSelf() }
+    @Deprecated("Deprecated in Android") override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
