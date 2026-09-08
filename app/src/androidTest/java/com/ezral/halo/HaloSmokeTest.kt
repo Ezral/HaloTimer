@@ -107,6 +107,39 @@ class HaloSmokeTest {
         } finally { rule.runOnUiThread { manager.removeViewImmediate(view) } }
     }
 
+    private fun checkSolidDockFrames() {
+        rule.runOnUiThread {
+            val d=activity.resources.displayMetrics.density
+            val view=com.ezral.halo.overlay.DockedTimerView(activity)
+            view.layout(0,0,(160*d).toInt(),(192*d).toInt())
+            view.track=Track(Definition(0,name="Coffee",dock=DockSide.LEFT,color=0xFFFF2D2D),
+                Session("render",listOf(Step()),status=Status.PAUSED,deadlineMs=0))
+            val epoch=SystemClock.elapsedRealtime()
+            fun frame(time: Long): Bitmap {
+                view.clock={epoch+time}
+                return Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
+            }
+            val a=frame(800); val b=frame(1400)
+            try {
+                assertFalse("Dock label advances on a curve",a.sameAs(b))
+                for(y in listOf(45,70,120,147)) {
+                    assertEquals("The dock has an opaque, solid edge",0xFFFF2D2D.toInt(),a.getPixel((2*d).toInt(),(y*d).toInt()))
+                }
+                assertEquals("The dock is shallow",0,Color.alpha(a.getPixel((48*d).toInt(),(96*d).toInt())))
+                val dir=activity.getExternalFilesDir(null)!!
+                java.io.File(dir,"14-dock-render.png").outputStream().use { a.compress(Bitmap.CompressFormat.PNG,100,it) }
+            } finally { a.recycle(); b.recycle() }
+            view.fullCircle=true
+            val first=frame(800); val loop=frame(6800)
+            try {
+                assertTrue("A full revolution loops seamlessly",first.sameAs(loop))
+                java.io.File(activity.getExternalFilesDir(null),"15-circle-render.png").outputStream().use { first.compress(Bitmap.CompressFormat.PNG,100,it) }
+            } finally { first.recycle(); loop.recycle() }
+        }
+        shell("cp /sdcard/Android/data/com.ezral.halo.debug/files/14-dock-render.png /sdcard/Download/halo-qa/")
+        shell("cp /sdcard/Android/data/com.ezral.halo.debug/files/15-circle-render.png /sdcard/Download/halo-qa/")
+    }
+
     private fun overlayNode(description: String): android.view.accessibility.AccessibilityNodeInfo? {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         val config = automation.serviceInfo
@@ -200,6 +233,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock==DockSide.RIGHT && overlayNode("Tap or drag inward to expand")!=null }
         SystemClock.sleep(350)
         screenshot("13-right-solid-dock")
+        overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
         // The same tangent rotation and contour must work on the mirrored edge.
         shell("input swipe ${(displayWidth-24*density).toInt()} ${dockBounds.centerY()} ${(displayWidth-200*density).toInt()} ${dockBounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock==DockSide.NONE }
@@ -258,6 +292,9 @@ class HaloSmokeTest {
             assertTrue("Actual completion overlay must move", changed > 0)
         } finally { before.recycle(); after.recycle() }
         screenshot("11-actual-completion")
+        rule.waitUntil(5_000) { overlayNode("Play Timer A") != null }
+        overlayNode("Play Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING }
         rule.waitUntil(5_000) { overlayNode("Stop Timer A") != null }
         overlayNode("Stop Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session == null }
@@ -295,6 +332,7 @@ class HaloSmokeTest {
         screenshot("03-dark-editor")
         rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
         checkFullDisplayAndSpacing()
+        checkSolidDockFrames()
         checkSettingsEditors()
         rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
         rule.onNodeWithContentDescription("Start timer").performClick()

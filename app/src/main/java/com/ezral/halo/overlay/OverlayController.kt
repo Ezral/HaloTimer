@@ -221,7 +221,10 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("track", id))
     private fun toggle(id: Int) {
         val status = c.state.value.tracks[id].session?.status
-        c.submit(if (status == Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
+        c.scope.launch {
+            if(status==Status.COMPLETED || status==Status.INTERRUPTED) c.execute(Command.Rewind(id))
+            c.execute(if(status==Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
+        }
     }
     private fun stop(id: Int) {
         if(previewId==id) previewUntil=0
