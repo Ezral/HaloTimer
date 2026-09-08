@@ -52,7 +52,9 @@ class HaloRuntimeService : Service() {
                     val now = SystemClock.elapsedRealtime()
                     if (screenOn) overlay.render(state, c.prefs.value)
                     if (now - lastNotice >= 1_000) {
-                        getSystemService(android.app.NotificationManager::class.java).notify(1, c.notifications.ongoing(state))
+                        if (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(this@HaloRuntimeService, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            getSystemService(android.app.NotificationManager::class.java).notify(1, c.notifications.ongoing(state))
+                        }
                         lastNotice = now
                     }
                     val work = state.tracks.any { it.session?.let { s -> s.status == Status.RUNNING || s.visualUntilMs > now } == true }

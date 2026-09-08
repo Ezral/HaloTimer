@@ -69,6 +69,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 val info = view.getChildAt(0) as TextView
                 val s = t.session!!
                 info.text = "${t.definition.name}\n${if (s.status == Status.COMPLETED) "Done" else formatTime(s.remaining(now))}${if (s.steps.size > 1) " · ${s.index + 1}/${s.steps.size}" else ""}"
+                if (s.steps.size > 1) info.append("\n${s.steps[s.index].name}")
                 info.contentDescription = "${t.definition.name}, ${s.steps[s.index].name}, ${s.status.name.lowercase()}, ${formatTime(s.remaining(now))}. Tap to pause or resume. Drag to move."
                 info.setTextColor(t.definition.color.toInt().let { if (dark) it else Color.rgb(Color.red(it) / 2, Color.green(it) / 2, Color.blue(it) / 2) })
                 for (i in 1 until view.childCount) (view.getChildAt(i) as TextView).setTextColor(if (dark) Color.WHITE else Color.BLACK)

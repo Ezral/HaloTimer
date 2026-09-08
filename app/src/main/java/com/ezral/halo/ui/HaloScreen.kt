@@ -89,7 +89,6 @@ fun HaloScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("halo", fontSize = 42.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
-                        Text("Your time, in view.", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { c.scope.launch { c.preferences.theme(when (prefs.theme) { "System" -> "Light"; "Light" -> "Dark"; else -> "System" }) } }) {
                         Text(if (dark) "◐  ${prefs.theme}" else "◑  ${prefs.theme}")
@@ -129,7 +128,7 @@ fun HaloScreen(
                         FilterChip(d.sequence, { c.submit(Command.Edit(d.copy(sequence = true))) }, { Text("Sequence") }, enabled = editable && ready)
                     }
                     if (s != null) {
-                        Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "TIME, BEAUTIFULLY SPENT"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
+                        Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
                         Text(formatTime(s.remaining(now)), fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-3).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         if (s.steps.size > 1) Text("${s.index + 1} / ${s.steps.size}  ·  ${s.steps[s.index].name}", color = scheme.onSurfaceVariant)
                         LinearProgressIndicator(progress = { s.progress(now) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)

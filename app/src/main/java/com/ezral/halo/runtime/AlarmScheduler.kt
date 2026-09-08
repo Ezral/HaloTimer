@@ -24,7 +24,7 @@ class AlarmScheduler(private val context: Context) {
             val s = t.session ?: return@forEach
             if (s.status != Status.RUNNING) return@forEach
             try {
-                if (exactAvailable()) manager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, s.deadlineMs, pending)
+                if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) manager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, s.deadlineMs, pending)
                 else manager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, s.deadlineMs, pending)
             } catch (_: SecurityException) {
                 manager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, s.deadlineMs, pending)
