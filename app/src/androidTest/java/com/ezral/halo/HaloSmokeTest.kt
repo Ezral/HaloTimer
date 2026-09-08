@@ -124,6 +124,7 @@ class HaloSmokeTest {
     private fun tapNative(description: String) {
         val node = overlayNode(description) ?: error("Missing native target: $description")
         val bounds = android.graphics.Rect(); node.getBoundsInScreen(bounds)
+        android.util.Log.i("HaloQA", "Tap $description at $bounds; clickable=${node.isClickable}")
         shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
     }
 
