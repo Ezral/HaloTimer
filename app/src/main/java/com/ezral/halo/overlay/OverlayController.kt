@@ -52,7 +52,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             visible.forEach { (id, t) ->
                 val control = controls.getOrPut(id) { createControl(t) }
                 // Capability can change at runtime (for example battery saver); refresh on service ticks.
-                val blur = Build.VERSION.SDK_INT >= 31 && wm.isCrossWindowBlurEnabled
+                val blur = control.dock == DockSide.NONE && Build.VERSION.SDK_INT >= 31 && wm.isCrossWindowBlurEnabled
                 if (control.blur != blur) {
                     control.blur = blur
                     val glass = GlassBackground(intArrayOf(
@@ -60,7 +60,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         if (blur) 0x66EDF3FA else 0xCCDDE6F0.toInt(),
                     ), dp(if (control.dock == DockSide.NONE) 28 else 48).toFloat(), if (control.dock == DockSide.NONE) 0 else dp(24))
                     control.dialog.window!!.apply {
-                        setBackgroundDrawable(glass)
+                        setBackgroundDrawable(if (control.dock == DockSide.NONE) glass else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
                         decorView.setPadding(0, 0, 0, 0)
                         if (Build.VERSION.SDK_INT >= 31) setBackgroundBlurRadius(if (blur) dp(24).coerceAtMost(100) else 0)
                     }

@@ -13,12 +13,20 @@ class DockedTimerView(context: Context) : View(context) {
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPath = Path()
+    init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val t = track ?: return
         val s = t.session ?: return
         val now = SystemClock.elapsedRealtime()
         val cx = width / 2f; val cy = height / 2f; val radius = 48 * d
+        // Keep the orbiting label outside the glass without a rectangular window-blur footprint.
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(cx - radius, cy - radius, cx + radius, cy + radius,
+            0xEEFFFFFF.toInt(), 0xBCDCE8F8.toInt(), Shader.TileMode.CLAMP)
+        paint.setShadowLayer(8 * d, 0f, 2 * d, 0x30000000)
+        canvas.drawCircle(cx, cy, radius, paint)
+        paint.shader = null; paint.clearShadowLayer()
         paint.color = t.definition.color.toInt(); paint.style = Paint.Style.STROKE; paint.strokeWidth = 2 * d
         val progress = (s.remaining(now).toFloat() / s.stepDurationMs.coerceAtLeast(1)).coerceIn(0f, 1f)
         canvas.drawArc(cx - radius + d, cy - radius + d, cx + radius - d, cy + radius - d, -90f, 360 * progress, false, paint)

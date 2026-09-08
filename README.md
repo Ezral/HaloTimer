@@ -44,7 +44,7 @@ Global volume-key interception is deliberately not packaged: ordinary overlays c
 
 Exact-alarm access does not guarantee every short sequence vibration during deep idle. A late callback reconciles the correct logical step without extending the sequence. Normal screens may support overlays; protected screens and system UI may hide or cover them. No permanent wake lock or security-setting workaround is used.
 
-Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and release performance have not yet been certified. Floating controls always use light glass, including in dark mode. Android 12+ background blur is used when available; unsupported devices or power-saving states use a stronger translucent tint. No screen capture is used.
+Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and release performance have not yet been certified. Floating controls always use light glass, including in dark mode. Expanded pills use Android 12+ background blur when available; compact docks use a circular translucent tint and shadow; unsupported devices or power-saving states use a stronger translucent tint. No screen capture is used.
 
 ## Structure
 

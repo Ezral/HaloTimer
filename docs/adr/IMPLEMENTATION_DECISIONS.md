@@ -82,3 +82,5 @@ Dragging a pill to either side persists a DockSide with normalized position. A 1
 Reference: https://source.android.com/docs/core/display/window-blurs
 
 Floating reset rewinds the run to its first step and waits for Play, keeping the control visible. Paused runs retain the foreground service and its stop notification so playback remains available over other apps; idle ticks slow to 1 Hz. Editor Reset continues to clear the run for structural editing.
+
+Visual QA found that an inset Window background displaced/clipped dock digits. The pill uses a padding-free background drawable; the dock draws its circular glass tint and shadow directly on a transparent window, keeping the label outside the circle. Native backdrop blur is limited to expanded pills to avoid a rectangular blur footprint surrounding the dock.
