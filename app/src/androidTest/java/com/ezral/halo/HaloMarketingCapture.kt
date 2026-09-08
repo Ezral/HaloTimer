@@ -85,10 +85,10 @@ class HaloMarketingCapture {
         (0..2).forEach { id -> command(Command.Edit(Definition(id, name = names[id], active = true,
             durationMs = listOf(150_000L, 180_000L, 300_000L)[id], color = colors[id], haptic = HapticStyle.OFF,
             x = .48f, y = .25f + id * .12f, glow = .6f))) }
-        SystemClock.sleep(800); shot("01-dark-menu")
-        runBlocking { c.preferences.theme("Light") }; SystemClock.sleep(600); shot("02-light-menu")
+        rule.waitForIdle(); SystemClock.sleep(300); shot("01-dark-menu")
+        runBlocking { c.preferences.theme("Light") }; rule.waitForIdle(); SystemClock.sleep(300); shot("02-light-menu")
         command(Command.Edit(c.state.value.tracks[0].definition.copy(sequence = true, steps = listOf(Step("Bloom", 30_000), Step("Slow pour", 120_000), Step("Draw down", 45_000)))))
-        SystemClock.sleep(600); shot("03-sequence-menu")
+        rule.waitForIdle(); SystemClock.sleep(300); shot("03-sequence-menu")
         command(Command.Edit(c.state.value.tracks[0].definition.copy(sequence = false)))
         start(setOf(0, 1, 2))
         bounds("Drag to an edge to dock")
