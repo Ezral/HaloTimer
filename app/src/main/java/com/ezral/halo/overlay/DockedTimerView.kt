@@ -13,7 +13,7 @@ class DockedTimerView(context: Context) : View(context) {
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPath = Path()
-    private val digits = resources.getFont(com.ezral.halo.R.font.poppins_medium)
+    private val digits = resources.getFont(com.ezral.halo.R.font.jetbrains_mono_regular)
     private val labelFont = resources.getFont(com.ezral.halo.R.font.poppins_bold)
     init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
     override fun onDraw(canvas: Canvas) {
@@ -25,13 +25,7 @@ class DockedTimerView(context: Context) : View(context) {
         // Keep the orbiting label outside the glass without a rectangular window-blur footprint.
         paint.style = Paint.Style.FILL
         val line = t.definition.color.toInt()
-        val pale = Color.rgb(
-            (Color.red(line) * .38f + 255 * .62f).toInt(),
-            (Color.green(line) * .38f + 255 * .62f).toInt(),
-            (Color.blue(line) * .38f + 255 * .62f).toInt())
-        paint.shader = LinearGradient(cx - radius, cy - radius, cx + radius, cy + radius,
-            Color.argb(238, Color.red(line), Color.green(line), Color.blue(line)),
-            Color.argb(220, Color.red(pale), Color.green(pale), Color.blue(pale)), Shader.TileMode.CLAMP)
+        paint.shader = HaloGlass.shader(RectF(cx - radius, cy - radius, cx + radius, cy + radius), line)
         paint.setShadowLayer(8 * d, 0f, 2 * d, 0x30000000)
         canvas.drawCircle(cx, cy, radius, paint)
         paint.shader = null; paint.clearShadowLayer()

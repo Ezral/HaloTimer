@@ -45,3 +45,19 @@ for item in FILES:
         raise RuntimeError(f"Unexpected font contents: {name}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(data)
+
+# Fixed-width countdown numerals; keep the upstream font and its license unmodified.
+for name, relative, expected in [
+    ('fonts/ttf/JetBrainsMono-Regular.ttf', 'app/src/main/res/font/jetbrains_mono_regular.ttf', '711830ede02a366f8b99f88e52f3148405e67eaf'),
+    ('OFL.txt', 'app/src/main/assets/licenses/JetBrainsMono-OFL.txt', '5ceee0025da23d2cd5fd14b28569708a8db4db2b'),
+]:
+    destination = ROOT / relative
+    if destination.exists():
+        data = destination.read_bytes()
+    else:
+        with urllib.request.urlopen('https://raw.githubusercontent.com/JetBrains/JetBrainsMono/19371302b95d218af43299bce79ddbddd0bc364d/' + name, timeout=60) as response:
+            data = response.read()
+    if hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() != expected:
+        raise RuntimeError('Unexpected JetBrains Mono contents: ' + name)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)

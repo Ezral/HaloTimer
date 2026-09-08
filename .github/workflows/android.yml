@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Verify bundled Poppins fonts
+      - name: Verify bundled typefaces
         run: python .github/scripts/fetch-fonts.py
       - uses: actions/setup-java@v4
         with:
@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Verify bundled Poppins fonts
+      - name: Verify bundled typefaces
         run: python .github/scripts/fetch-fonts.py
       - uses: actions/setup-java@v4
         with:

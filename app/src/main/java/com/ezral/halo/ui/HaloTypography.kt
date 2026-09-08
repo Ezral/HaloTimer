@@ -6,6 +6,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.ezral.halo.R
 
+val CountdownMono = FontFamily(Font(R.font.jetbrains_mono_regular, FontWeight.Normal))
+
 val Poppins = FontFamily(
     Font(R.font.poppins_light, FontWeight.Light),
     Font(R.font.poppins_regular, FontWeight.Normal),

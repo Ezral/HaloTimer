@@ -18,6 +18,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -105,7 +107,9 @@ fun HaloScreen(
             var customColor by remember { mutableStateOf(false) }
             var colorDraft by remember(d.color) { mutableStateOf("#%06X".format(d.color and 0xFFFFFF)) }
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
+                Column(Modifier.fillMaxWidth().zIndex(1f).shadow(12.dp, clip = false,
+                    ambientColor = Color.Black.copy(alpha = .10f), spotColor = Color.Black.copy(alpha = .18f))
+                    .background(scheme.background).padding(horizontal = 22.dp, vertical = 10.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("halo", fontSize = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
                         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
@@ -141,7 +145,7 @@ fun HaloScreen(
                                 Text(t.definition.name, maxLines = 2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Text(if (t.definition.active) "Active" else "Inactive", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-                            if (t.session != null) Text(formatTime(t.session!!.remaining(now)), fontFamily = Poppins, fontSize = 12.sp)
+                            if (t.session != null) Text(formatTime(t.session!!.remaining(now)), fontFamily = CountdownMono, fontSize = 12.sp)
                         }
                     }
                 }
@@ -163,7 +167,7 @@ fun HaloScreen(
                     }
                     if (s != null) {
                         Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
-                        Text(formatTime(s.remaining(now)), fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-3).sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        Text(formatTime(s.remaining(now)), fontFamily = CountdownMono, fontSize = 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         if (s.steps.size > 1) Text("${s.index + 1} / ${s.steps.size}  ·  ${s.steps[s.index].name}", color = scheme.onSurfaceVariant)
                         LinearProgressIndicator(progress = { s.progress(now) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)
                         if (s.status == Status.RUNNING || s.status == Status.PAUSED) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -353,7 +357,7 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
     val latestChanged by rememberUpdatedState(changed)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         listOf(true, false).forEach { minute ->
-            if (!minute) Text(":", fontSize = if (compact) 32.sp else 52.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(bottom = 20.dp))
+            if (!minute) Text(":", fontFamily = CountdownMono, fontSize = if (compact) 32.sp else 52.sp, modifier = Modifier.padding(bottom = 20.dp))
             val number = if (minute) value / 60_000 else value / 1000 % 60
             var draft by remember(number) { mutableStateOf("%02d".format(number)) }
             var focused by remember { mutableStateOf(false) }
@@ -394,7 +398,7 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
                             contentDescription = if (minute) "Minutes" else "Seconds"
                             customActions = listOf(CustomAccessibilityAction("Increase") { change(unit); true }, CustomAccessibilityAction("Decrease") { change(-unit); true })
                         }, enabled = enabled, singleLine = true,
-                    textStyle = TextStyle(fontSize = if (compact) 36.sp else 58.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
+                    textStyle = TextStyle(fontFamily = CountdownMono, fontSize = if (compact) 36.sp else 58.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }))
                 Text(if (minute) "MIN" else "SEC", fontSize = 10.sp, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row { TextButton(onClick = { change(-unit) }, enabled = enabled) { Text("−", Modifier.semantics { contentDescription = "Decrease ${if (minute) "minutes" else "seconds"}" }) }; TextButton(onClick = { change(unit) }, enabled = enabled) { Text("+", Modifier.semantics { contentDescription = "Increase ${if (minute) "minutes" else "seconds"}" }) } }

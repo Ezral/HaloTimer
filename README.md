@@ -78,3 +78,10 @@ The floating pill is compact, with matching dark text/icons on light color-tinte
 The optional **Dismiss all timers on menu entry** setting defaults off. With it on, returning to Halo clears every running/paused/completed session and its alerts; timer definitions remain saved. Breathe uses a 4.8-second cycle with a gentle inhale and longer exhale, easing both line intensity and glow.
 
 Poppins is bundled under the SIL Open Font License; see `app/src/main/assets/licenses/Poppins-OFL.txt`. `.github/scripts/fetch-fonts.py` verifies the upstream font blobs against pinned hashes.
+
+
+## Alpha 04 — fluid controls
+
+The bar and dock share the same tint recipe. The bar shows only the countdown, with JetBrains Mono used for all in-app MM:SS digits; Poppins remains the menu typeface. Docking/undocking morphs the glass between the pill and its edge bubble. Long-press actions pop onto equal-angle points around the dock with no connecting lines. Reduced motion skips these transitions. The persistent menu header casts a soft shadow over scrolling cards.
+
+JetBrains Mono is bundled unchanged under OFL; its license is in `app/src/main/assets/licenses/JetBrainsMono-OFL.txt`.

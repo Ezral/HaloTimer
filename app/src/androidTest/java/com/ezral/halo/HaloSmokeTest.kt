@@ -121,6 +121,12 @@ class HaloSmokeTest {
         return automation.windows.firstNotNullOfOrNull { find(it.root) }
     }
 
+    private fun tapNative(description: String) {
+        val node = overlayNode(description) ?: error("Missing native target: $description")
+        val bounds = android.graphics.Rect(); node.getBoundsInScreen(bounds)
+        shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
+    }
+
     private fun checkGlassDockAndPlayback() {
         val c = (activity.application as HaloApplication).coordinator
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
@@ -129,6 +135,7 @@ class HaloSmokeTest {
         shell("input swipe ${bounds.centerX()} ${bounds.centerY()} 0 ${bounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.LEFT }
         rule.waitUntil(5_000) { overlayNode("Tap or drag inward to expand") != null }
+        SystemClock.sleep(550) // The glass morph completes before another pointer gesture.
         screenshot("07-left-docked-glass")
         val dockBounds = android.graphics.Rect()
         overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
@@ -142,23 +149,26 @@ class HaloSmokeTest {
                 try { assertTrue(automation.injectInputEvent(event, true)) } finally { event.recycle() }
             }
             pointer(android.view.MotionEvent.ACTION_DOWN, 24 * density, dockBounds.centerY().toFloat())
-            SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 200L)
+            SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 600L)
             if (capture) screenshot("12-dock-blob-menu")
             pointer(android.view.MotionEvent.ACTION_MOVE, targetX, targetY)
             pointer(android.view.MotionEvent.ACTION_UP, targetX, targetY)
         }
-        val menuTop = (dockBounds.centerY() - 136 * density).coerceAtLeast(0f)
-        dockGesture(126 * density, menuTop + 104 * density, true)
+        val menuTop = (dockBounds.centerY() - 144 * density).coerceAtLeast(0f)
+        fun arcX(degrees: Double) = (kotlin.math.cos(Math.toRadians(degrees)) * 108 * density).toFloat()
+        fun arcY(degrees: Double) = menuTop + (144 + kotlin.math.sin(Math.toRadians(degrees)) * 108).toFloat() * density
+        dockGesture(arcX(-22.0), arcY(-22.0), true)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED }
         // Releasing off the targets cancels without expanding or changing playback.
-        dockGesture(185 * density, menuTop + 260 * density)
+        dockGesture(160 * density, menuTop + 280 * density)
         assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
         assertEquals(DockSide.LEFT, c.state.value.tracks[0].definition.dock)
-        dockGesture(60 * density, menuTop + 40 * density)
+        dockGesture(arcX(-66.0), arcY(-66.0))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
         // Pull the half-circle back into the screen, without touching system back-gesture territory.
         shell("input swipe ${(24 * density).toInt()} ${dockBounds.centerY()} ${(200 * density).toInt()} ${dockBounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.NONE && overlayNode("Pause Timer A") != null }
+        SystemClock.sleep(550)
         overlayNode("Pause Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED && overlayNode("Play Timer A") != null }
         screenshot("08-paused-glass")
@@ -271,10 +281,10 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { overlayNode("Pause timer") != null }
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") == null && overlayNode("Tap or drag inward to expand") == null }
         screenshot("06-running-settings")
-        overlayNode("Pause timer")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        tapNative("Pause timer")
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session?.status == com.ezral.halo.core.Status.PAUSED }
         rule.waitUntil(5_000) { overlayNode("Reset") != null }
-        overlayNode("Reset")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        tapNative("Reset")
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
         checkRealCompletion()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")

@@ -49,3 +49,12 @@ Attach evidence for R01–R24 to STATUS.md. Resolve failures, profile frame paci
 - Compare the compact pill text and icon colors. Check pale line-colored glass on bright/dark backgrounds and with system blur disabled.
 - Confirm Breathe eases through inhale, peak, longer exhale and the cycle seam; observe at least three cycles after actual completion. Other completion modes must wrap continuously even when system transition animations are disabled.
 - With menu-entry dismissal off, opening Halo only hides controls. With it on, opening Halo clears running, paused and completed sessions plus Morse/repeated vibration. Definitions remain available for the next run.
+
+
+## Alpha 04 fluid controls
+
+- Confirm the pill and dock share their color tint for red, blue, purple and a custom color. The bar must show only MM:SS, with fixed digit widths during changes such as 01:11 → 01:10.
+- Dock and expand repeatedly from both sides. The glass should merge/split without a flash, duplicate controls, lost countdown or invisible window remaining after opening Halo/Stop all.
+- Hold the dock: four disconnected bubbles should spring to equally spaced arc positions. Slide and release to select; release outside to cancel. Test near the top/bottom display limits as well as the center.
+- Enable Reduce motion and repeat: controls should switch immediately and the action bubbles should appear at their final positions.
+- Scroll both light and dark menus; cards should pass under the softly elevated persistent header, while the header action targets remain clickable.
