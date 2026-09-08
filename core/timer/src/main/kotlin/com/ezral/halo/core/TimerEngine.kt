@@ -70,14 +70,14 @@ const val MAX_MS = 5_999_000L
     val tracks: List<Track> = (0..2).map { Track(Definition(it)) },
     val outbox: List<AlertEvent> = emptyList(),
 )
-data class Target(val track: Int, val session: String?, val index: Int)
+data class AdjustmentTarget(val track: Int, val session: String?, val index: Int)
 sealed interface Command {
     data class Start(val ids: Set<Int>) : Command
     data class Pause(val id: Int) : Command
     data class Reset(val id: Int) : Command
     data class Activate(val id: Int, val active: Boolean) : Command
     data class Edit(val definition: Definition) : Command
-    data class Adjust(val target: Target, val deltaMs: Long) : Command
+    data class Adjust(val target: AdjustmentTarget, val deltaMs: Long) : Command
     data class Hide(val id: Int, val hidden: Boolean) : Command
     data class Move(val id: Int, val x: Float, val y: Float) : Command
     data object ShowAll : Command

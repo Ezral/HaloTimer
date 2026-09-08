@@ -93,8 +93,8 @@ class TimerCoordinator(private val context: Context) {
         }
     }
     suspend fun initialize() { execute(Command.Tick) }
-    fun target(id: Int, selectedStep: Int = 0): Target {
+    fun target(id: Int, selectedStep: Int = 0): AdjustmentTarget {
         val s = state.value.tracks[id].session
-        return Target(id, s?.id, s?.index ?: selectedStep)
+        return AdjustmentTarget(id, s?.id, s?.index ?: selectedStep)
     }
 }

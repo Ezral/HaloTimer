@@ -89,7 +89,7 @@ fun HaloScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("halo", fontSize = 42.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
-                        Text("A little light. Your time.", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                        Text("Your time, in view.", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { c.scope.launch { c.preferences.theme(when (prefs.theme) { "System" -> "Light"; "Light" -> "Dark"; else -> "System" }) } }) {
                         Text(if (dark) "◐  ${prefs.theme}" else "◑  ${prefs.theme}")

@@ -1,0 +1,59 @@
+# Native alpha decisions
+
+Date: 2026-09-08. Scope: first native implementation. These decisions do not mark physical-device spikes as passed.
+
+## ADR-001 — Toolchain and boundaries
+
+Use Kotlin 2.2.21, AGP 8.13.2, Gradle 8.13, JDK 17, SDK 36 and minimum API 26. This is a pinned compatible baseline, not a claim to be the latest SDK/toolchain. AGP's [official compatibility table](https://developer.android.com/build/releases/agp-8-13-0-release-notes) supports this Gradle/JDK combination and API 36. Reassess the applicable target before store submission.
+
+Use one Android module and a separate pure JVM domain module. Compose/Material 3 supplies the native UI; package boundaries isolate platform adapters. Manual application-scoped injection avoids an unnecessary DI plugin for three tracks. The permanent application namespace needs owner confirmation before production signing.
+
+## ADR-002 — Overlay topology
+
+One shared `FLAG_NOT_TOUCHABLE | FLAG_NOT_FOCUSABLE` decorative application-overlay window draws all tracks. Its window alpha is capped at `min(0.75, InputManager.maximumObscuringOpacityForTouch)` on API 31+. One bounded touchable window per glass control contains only the actual control footprint. No full-screen touch listener, accessibility content scraping, screenshot capture or platform security override.
+
+Equal 4dp strokes are separated by exactly 4dp between centerlines, packed by stable track ID. Paths start at top center and advance clockwise. Cached paths are rebuilt for size/lane-count changes. Floating positions persist as normalized coordinates. Software canvas provides bounded glow; initial redraw cap is 30Hz. Screen off removes windows entirely.
+
+The tint fallback is always used. Rounded corner radius is provisional at 28dp. Keyboard/cutout/foldable geometry and overlapping controls require SP01/SP04 device evidence. If touch safety fails, replace the full-display decoration with narrow perimeter windows before release. See [Android untrusted-touch rules](https://developer.android.com/about/versions/12/behavior-changes-all).
+
+## ADR-003 — Foreground runtime
+
+One user-started `specialUse` foreground service owns visible overlay operation. The manifest describes the actual timer/overlay use. This is an internal-build classification subject to Play declaration/review, not a guarantee of acceptance. No media/location type is misused.
+
+Start promptly in the foreground, then load/reconcile state. Stop when there are no running sessions or bounded visual previews/completion alerts. Paused state persists without retaining a perpetual service. Use `START_NOT_STICKY`; ordinary alarm delivery reconciles durable state and does not unconditionally resurrect overlays. A user opens Halo to restore the visual runtime after process termination.
+
+Reference: [service types](https://developer.android.com/develop/background-work/services/fgs/service-types), [background start restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start).
+
+## ADR-004 — Alarm tier
+
+Use user-granted `SCHEDULE_EXACT_ALARM`, checked before each schedule, with one elapsed-realtime next-boundary alarm per running track. Fall back to `setAndAllowWhileIdle` on denial/revocation; show degraded capability in settings. No alarm-clock UI semantics are silently introduced. No permanent CPU wake lock.
+
+PendingIntent identities are stable per slot. Alarm callbacks carry no command against a historical session: they only load and reconcile current deadlines. Every semantic mutation reschedules as necessary. A stale alarm therefore cannot reset or expire a newer run.
+
+Logical timing is exact deadline arithmetic. Physical delivery is conditional: idle throttling can postpone closely spaced boundaries and long background haptic queues can be interrupted by process reclamation. Late delivery skips stale intermediate haptics. Do not advertise exact short-sequence alerts in deep idle until SP02 passes. See [AlarmManager](https://developer.android.com/reference/android/app/AlarmManager).
+
+## ADR-005 — Recovery and stopping
+
+Room holds the monotonic deadline and `BOOT_COUNT`. Same-boot recovery reconciles all elapsed boundaries; a changed/unknown boot token changes Running to Interrupted. Wall-clock time never drives countdown arithmetic. On API 30+, user-requested historical process exit also interrupts rather than resumes. `Stop all` cancels alarms, current/pending haptics and completions; service removes windows on its next bounded loop.
+
+Force-stop cannot promise recovery until user reopens the app. Task Manager stop differs from force-stop; the recovery path respects the recorded user exit. Backup is disabled for this first version so live sessions can never migrate to another device. Selective definition-only backup is deferred.
+
+## ADR-006 — Volume scope
+
+Ship app-local input only. The setting explicitly says “Volume buttons in Halo,” defaults off and consumes no keys while disabled. Freeze track/session/step on down, use a 600ms repeat cadence, stop at 15 seconds, and cancel on focus loss, pause, target change, direction chord or key-up. The engine rejects an old step/session target after reconciliation.
+
+The floating ± buttons are the cross-app alternative. They apply one 30s adjustment per tap in this alpha. An optional global adapter remains outside the manifest until a separately consented key-filtering spike is tested with TalkBack, competing services, media/calls, Samsung behavior, and the distribution policy. Do not represent Halo as an accessibility tool solely to obtain key access.
+
+## ADR-007 — Haptics and crash tradeoff
+
+Use an event ID of session/step, scheduled-time ordering and stable slot tie-breaks. Commit the transition and outbox in the same Room checkpoint. Before physical effects, persist outbox consumption. This deliberately chooses at-most-once delivery attempts over duplicate haptics on recovery; a crash in that interval can lose an alert. No exactly-once claim is made.
+
+All real haptic requests enter one bounded queue. Real events preempt previews; cancel/reset only removes the selected track. Drop intermediate events older than five seconds; coalesce overflow into a short cue if budget remains. No repeated waveform. Use `USAGE_ALARM` to let Android apply the user's settings. The native waveform begins with a zero off interval.
+
+## ADR-008 — Atomic persistence
+
+Use Room v1 with a single serialized checkpoint row containing all three definitions, sessions, revisions and outbox. This is a deliberate refinement of the plan's proposed normalized tables: a bounded three-track model fits one atomic record and needs no joins or partial cross-table updates. JSON schema version is independent of Room schema version. DataStore holds only theme, motion and local volume preferences.
+
+Save on semantic changes only; displayed seconds/frames do not write storage. Hold a mutex through state transition, commit and effect handoff. A storage error retains the database and stops further mutation with an interruption message; never fall back to destructive migration or silently overwrite unreadable data. CI exports the Room schema as a report artifact. Commit the generated v1 schema before introducing migration v2.
+
+Before release, add on-device database recreation/migration tests, bounds/schema validation on restore, and fault injection at persistence/effect boundaries. JVM serialization tests already cover immutable run snapshots and outbox round trips.

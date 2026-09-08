@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     private var selectedStep = 0
     private val handler = Handler(Looper.getMainLooper())
     private var heldKey: Int? = null
-    private var target: Target? = null
+    private var target: AdjustmentTarget? = null
     private var downAt = 0L
     private var exhausted = false
     private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }

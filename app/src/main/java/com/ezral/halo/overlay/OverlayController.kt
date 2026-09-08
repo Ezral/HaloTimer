@@ -87,7 +87,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             minHeight = dp(48); maxWidth = dp(132); setPadding(dp(4), 0, dp(8), 0)
             isClickable = true
         }
-        root.addView(info, LinearLayout.LayoutParams(dp(132), dp(60)))
+        val infoWidth = (context.resources.displayMetrics.widthPixels - dp(216)).coerceIn(dp(64), dp(132))
+        root.addView(info, LinearLayout.LayoutParams(infoWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
         fun button(label: String, description: String, action: () -> Unit) {
             root.addView(TextView(context).apply {
                 text = label; textSize = 22f; gravity = Gravity.CENTER; contentDescription = description

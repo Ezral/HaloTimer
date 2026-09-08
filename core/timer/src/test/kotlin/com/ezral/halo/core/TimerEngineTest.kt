@@ -46,25 +46,25 @@ class TimerEngineTest {
         assertEquals(120_000L, s.tracks[0].session!!.remainingMs)
     }
     @Test fun staleHoldCannotAdjustNextStep() {
-        val s = run(sequence(), 0); val t = Target(0, s.tracks[0].session!!.id, 0)
+        val s = run(sequence(), 0); val t = AdjustmentTarget(0, s.tracks[0].session!!.id, 0)
         val next = engine.apply(s, Command.Adjust(t, 30_000), 30_000).snapshot
         assertEquals(150_000L, next.tracks[0].session!!.deadlineMs)
     }
     @Test fun resetInvalidatesStaleSession() {
-        val old = run(); val target = Target(0, old.tracks[0].session!!.id, 0)
+        val old = run(); val target = AdjustmentTarget(0, old.tracks[0].session!!.id, 0)
         val reset = engine.apply(old, Command.Reset(0), 2_000).snapshot
         val restarted = engine.apply(reset, Command.Start(setOf(0)), 2_000).snapshot
         assertEquals(restarted, engine.apply(restarted, Command.Adjust(target, 30_000), 2_000).snapshot)
     }
     @Test fun adjustPreservesFractionAndOtherTracks() {
-        val s = run(); val target = Target(0, s.tracks[0].session!!.id, 0)
+        val s = run(); val target = AdjustmentTarget(0, s.tracks[0].session!!.id, 0)
         val adjusted = engine.apply(s, Command.Adjust(target, 30_000), 1_501).snapshot
         assertEquals(89_499L, adjusted.tracks[0].session!!.remaining(1_501))
         assertEquals(90_000L, adjusted.tracks[0].session!!.stepDurationMs)
         assertEquals(s.tracks.drop(1), adjusted.tracks.drop(1))
     }
     @Test fun clampNeverSkipsStep() {
-        val s = run(); val result = engine.apply(s, Command.Adjust(Target(0, s.tracks[0].session!!.id, 0), -90_000), 2_000).snapshot
+        val s = run(); val result = engine.apply(s, Command.Adjust(AdjustmentTarget(0, s.tracks[0].session!!.id, 0), -90_000), 2_000).snapshot
         assertEquals(1_000L, result.tracks[0].session!!.remaining(2_000)); assertEquals(0, result.tracks[0].session!!.index)
     }
     @Test fun deactivatePausesAndActivationDoesNotResume() {
@@ -103,17 +103,17 @@ class TimerEngineTest {
     }
     @Test fun secondsCarryBorrowAndClamps() {
         var s = all(59_000)
-        s = engine.apply(s, Command.Adjust(Target(0, null, 0), 1_000), 0).snapshot
+        s = engine.apply(s, Command.Adjust(AdjustmentTarget(0, null, 0), 1_000), 0).snapshot
         assertEquals("01:00", formatTime(s.tracks[0].definition.durationMs))
-        s = engine.apply(s, Command.Adjust(Target(0, null, 0), -1_000), 0).snapshot
+        s = engine.apply(s, Command.Adjust(AdjustmentTarget(0, null, 0), -1_000), 0).snapshot
         assertEquals("00:59", formatTime(s.tracks[0].definition.durationMs))
-        s = engine.apply(s, Command.Adjust(Target(0, null, 0), Long.MIN_VALUE / 2), 0).snapshot
+        s = engine.apply(s, Command.Adjust(AdjustmentTarget(0, null, 0), Long.MIN_VALUE / 2), 0).snapshot
         assertEquals(MIN_MS, s.tracks[0].definition.durationMs)
-        s = engine.apply(s, Command.Adjust(Target(0, null, 0), MAX_MS * 2), 0).snapshot
+        s = engine.apply(s, Command.Adjust(AdjustmentTarget(0, null, 0), MAX_MS * 2), 0).snapshot
         assertEquals(MAX_MS, s.tracks[0].definition.durationMs)
     }
     @Test fun selectedSequenceRowAdjustment() {
-        val s = engine.apply(sequence(), Command.Adjust(Target(0, null, 1), 30_000), 0).snapshot
+        val s = engine.apply(sequence(), Command.Adjust(AdjustmentTarget(0, null, 1), 30_000), 0).snapshot
         assertEquals(30_000L, s.tracks[0].definition.steps[0].durationMs)
         assertEquals(150_000L, s.tracks[0].definition.steps[1].durationMs)
     }
@@ -132,7 +132,7 @@ class TimerEngineTest {
                 0 -> Command.Pause(id)
                 1 -> Command.Start(setOf(id))
                 2 -> Command.Hide(id, random.nextBoolean())
-                else -> Command.Adjust(Target(id, s.tracks[id].session?.id, s.tracks[id].session?.index ?: 0), if (random.nextBoolean()) 30_000 else -30_000)
+                else -> Command.Adjust(AdjustmentTarget(id, s.tracks[id].session?.id, s.tracks[id].session?.index ?: 0), if (random.nextBoolean()) 30_000 else -30_000)
             }
             s = engine.apply(s, command, now).snapshot
             (0..2).filter { it != id }.forEach { assertEquals(before.tracks[it], s.tracks[it]) }
