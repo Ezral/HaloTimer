@@ -18,6 +18,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import org.junit.Before
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -26,6 +27,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class HaloSmokeTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
+
+    private lateinit var activity: MainActivity
+    @Before fun captureActivityBeforeOverlaysAnimate() { activity = rule.activity }
 
     @After fun stopOverlaysBeforeEspressoTearDown() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as HaloApplication
@@ -40,7 +44,7 @@ class HaloSmokeTest {
     }
 
     private fun checkFullDisplayAndSpacing() {
-        val context = rule.activity.applicationContext
+        val context = activity.applicationContext
         val manager = context.getSystemService(WindowManager::class.java)
         val metrics = android.util.DisplayMetrics()
         @Suppress("DEPRECATION")
@@ -97,7 +101,7 @@ class HaloSmokeTest {
             }
             // The decorative window must not consume a tap on the app beneath it.
             rule.onNodeWithContentDescription("Decrease seconds").performClick()
-            rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
+            rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
             rule.onNodeWithContentDescription("Increase seconds").performClick()
         } finally { rule.runOnUiThread { manager.removeViewImmediate(view) } }
     }
@@ -117,7 +121,7 @@ class HaloSmokeTest {
     }
 
     private fun checkGlassDockAndPlayback() {
-        val c = (rule.activity.application as HaloApplication).coordinator
+        val c = (activity.application as HaloApplication).coordinator
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
         val bounds = android.graphics.Rect()
         overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
@@ -127,7 +131,7 @@ class HaloSmokeTest {
         screenshot("07-left-docked-glass")
         val dockBounds = android.graphics.Rect()
         overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
-        val density = rule.activity.resources.displayMetrics.density
+        val density = activity.resources.displayMetrics.density
         fun dockGesture(targetX: Float, targetY: Float, capture: Boolean = false) {
             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
             val down = SystemClock.uptimeMillis()
@@ -165,7 +169,7 @@ class HaloSmokeTest {
     }
 
     private fun checkSettingsEditors() {
-        val c = (rule.activity.application as HaloApplication).coordinator
+        val c = (activity.application as HaloApplication).coordinator
         rule.onNodeWithText("Morse", substring = false).performScrollTo().performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.haptic == HapticStyle.MORSE }
         rule.onNodeWithText("Edit", substring = false).performScrollTo().performClick()
@@ -196,7 +200,7 @@ class HaloSmokeTest {
     }
 
     private fun checkRealCompletion() {
-        val c = (rule.activity.application as HaloApplication).coordinator
+        val c = (activity.application as HaloApplication).coordinator
         // CI disables system transition animations; Halo canvas alerts must still animate.
         c.submit(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 1_000, alert = AlertStyle.ORBIT, haptic = HapticStyle.OFF)))
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.durationMs == 1_000L }
@@ -208,7 +212,7 @@ class HaloSmokeTest {
         SystemClock.sleep(450)
         val after = automation.takeScreenshot()
         try {
-            val border = (rule.activity.resources.displayMetrics.density * 4).toInt()
+            val border = (activity.resources.displayMetrics.density * 4).toInt()
             var changed = 0
             for (y in 0 until before.height) for (x in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
             for (x in 0 until before.width) for (y in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
@@ -228,58 +232,62 @@ class HaloSmokeTest {
         // Capture as the shell directly into shared emulator output, outside app uninstall cleanup.
         shell("mkdir -p /sdcard/Download/halo-qa")
         shell("screencap -p /sdcard/Download/halo-qa/$name.png")
+        android.util.Log.i("HaloQA", "Captured $name")
     }
 
-    @Test fun nativeEditorThemesAndRuntime() {
+    @Test fun nativeEditorThemesAndRuntime() = try {
         if (android.os.Build.VERSION.SDK_INT >= 33) InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission("com.ezral.halo.debug", android.Manifest.permission.POST_NOTIFICATIONS)
-        rule.waitUntil(10_000) { (rule.activity.application as HaloApplication).coordinator.ready.value }
+        rule.waitUntil(10_000) { (activity.application as HaloApplication).coordinator.ready.value }
         val launcherError = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
             ?.findAccessibilityNodeInfosByText("Quickstep isn't responding")?.isNotEmpty() == true
         if (launcherError) shell("am force-stop com.android.launcher3")
-        rule.waitUntil(10_000) { rule.activity.hasWindowFocus() }
+        rule.waitUntil(10_000) { activity.hasWindowFocus() }
         shell("appops set com.ezral.halo.debug SYSTEM_ALERT_WINDOW allow")
-        rule.waitUntil(5_000) { Settings.canDrawOverlays(rule.activity) }
+        rule.waitUntil(5_000) { Settings.canDrawOverlays(activity) }
         // A second-field adjustment must operate on the entire duration, including borrow.
         rule.onNodeWithContentDescription("Decrease seconds").performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
         rule.onNodeWithContentDescription("Increase seconds").performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 300_000L }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 300_000L }
         screenshot("01-system-editor")
         rule.onNodeWithText("Light").performScrollTo().performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.prefs.value.theme == "Light" }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.prefs.value.theme == "Light" }
         screenshot("02-light-editor")
         rule.onNodeWithText("Dark").performScrollTo().performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.prefs.value.theme == "Dark" }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.prefs.value.theme == "Dark" }
         screenshot("03-dark-editor")
         rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
         checkFullDisplayAndSpacing()
         checkSettingsEditors()
         rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
         rule.onNodeWithContentDescription("Start timer").performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session != null }
-        rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session != null }
+        rule.waitUntil(5_000) { !activity.hasWindowFocus() }
         screenshot("05-running-over-home")
         checkGlassDockAndPlayback()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
-        rule.waitUntil(5_000) { rule.activity.hasWindowFocus() }
+        rule.waitUntil(5_000) { activity.hasWindowFocus() }
         rule.onNodeWithContentDescription("Pause timer").assertExists()
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") == null && overlayNode("Tap or drag inward to expand") == null }
         screenshot("06-running-settings")
         rule.onNodeWithContentDescription("Pause timer").performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session?.status == com.ezral.halo.core.Status.PAUSED }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session?.status == com.ezral.halo.core.Status.PAUSED }
         rule.onNodeWithText("Reset").performScrollTo().performClick()
-        rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
+        rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
         checkRealCompletion()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
-        rule.waitUntil(5_000) { rule.activity.hasWindowFocus() }
-        val c = (rule.activity.application as HaloApplication).coordinator
+        rule.waitUntil(5_000) { activity.hasWindowFocus() }
+        val c = (activity.application as HaloApplication).coordinator
         rule.onNodeWithContentDescription("Dismiss all timers on menu entry").performScrollTo().performClick()
         rule.waitUntil(5_000) { c.prefs.value.dismissAllOnMenu }
         c.submit(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 300_000)))
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.durationMs == 300_000L }
         rule.onNodeWithContentDescription("Start timer").performClick()
-        rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() && c.state.value.tracks[0].session != null }
+        rule.waitUntil(5_000) { !activity.hasWindowFocus() && c.state.value.tracks[0].session != null }
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
-        rule.waitUntil(5_000) { rule.activity.hasWindowFocus() && c.state.value.tracks.all { it.session == null } }
+        rule.waitUntil(5_000) { activity.hasWindowFocus() && c.state.value.tracks.all { it.session == null } }
+    } catch (failure: Throwable) {
+        android.util.Log.e("HaloQA", "Native check failed before cleanup", failure)
+        throw failure
     }
 }
