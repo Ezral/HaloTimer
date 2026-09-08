@@ -7,3 +7,13 @@ The separate test APK includes an original, clearly labelled sample recipe app. 
 Outputs: dark/light/sequence menu screenshots, three parallel overlays, dock/actions/glass screenshots, and real-time MP4s of parallel timers, docking and all four completion alert styles. Sound is intentionally absent; vibration cannot be conveyed by screen recording. Android system elements keep their normal z-order.
 
 The capture fixture creates sample data only in the disposable emulator. It never accesses a user's phone or changes production app behavior. Compiled test activities are excluded from shipping APKs.
+
+## Campaign layouts
+
+After downloading the capture artifact, run:
+
+```bash
+python3 docs/marketing/render-pack.py /path/to/marketing-captures /path/to/deliverables
+```
+
+Requires Python with Pillow and NumPy, plus FFmpeg. Produces six portrait PNGs, a contact sheet, and four silent 1080 × 1920 H.264 videos. The native screen remains complete and proportional; only external headlines and a frame are composited. Keep original captures alongside finished assets. Do not imply that the sample recipe app is a Halo feature, or that screen recordings demonstrate vibration.
