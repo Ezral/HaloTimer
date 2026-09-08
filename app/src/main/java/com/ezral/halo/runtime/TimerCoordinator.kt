@@ -66,6 +66,7 @@ class TimerCoordinator(private val context: Context) {
             // Reconcile on every semantic command; Tick only needs a reschedule on changes.
             if (next != old || command != Command.Tick) alarmScheduler.reconcile(next)
             when (command) {
+                is Command.Rewind -> { haptics.cancel(command.id); notifications.cancelCompletion(command.id) }
                 is Command.Reset -> { haptics.cancel(command.id); notifications.cancelCompletion(command.id) }
                 Command.StopAll -> { haptics.cancelAll(); notifications.cancelAllCompletions() }
                 else -> Unit
