@@ -4,9 +4,9 @@ Date: 2026-09-08. Initial implementation against the product plan. This report d
 
 | Area | Implementation | Evidence/status |
 |---|---|---|
-| R01–R03, R06–R08: three tracks, identity, activation, sequences, independent commands | Pure engine + native editor | 27 JVM tests passed (0 failures), including 2,000 randomized command operations |
+| R01–R03, R06–R08: three tracks, identity, activation, sequences, independent commands | Pure engine + native editor | 29 JVM tests passed (0 failures), including 2,000 randomized command operations |
 | R04–R05: two-field MM:SS, carry/borrow | Text, drag, wheel and accessible increment/decrement | Arithmetic tests added; native interaction/font-scale checks pending |
-| R09–R12: lines, glass, hide/restore | Shared edge surface + bounded draggable controls + app/notification restoration | Device touch/geometry gate pending |
+| R09–R12: lines, glass, hide/restore | Full-display edge surface, 2dp lane gaps, light glass and persisted half-circle docks | Android 15 bounds/gaps/touch-through regression passed; physical-device matrix pending |
 | R13: four visual modes | Native path renderer | Native visual QA pending |
 | R14–R16: silent alerts, Morse, contention | Silent channels, encoder and bounded queue | 5 Morse tests passed; queue/hardware delivery gate pending |
 | R17–R18: volume controls | App-local keys; fixed-target repeat/cancel; floating playback controls | Threshold tests added; physical-key checks pending; global capture not shipped |
@@ -38,4 +38,13 @@ The owner tested the first debug APK on their phone and reported that the halo a
 Alpha 01 had 27 passing JVM tests, a passing Android lint/debug build, and a passing Android 15 emulator smoke test (run 34208242394). Alpha 02 adds attached-window bounds, rendered lane-gap, touch-through and background-launch checks to the emulator test.
 
 
-The full-display/gap/background-launch regression passed on the Android 15 emulator in run 34210599896, including the persistent header. The subsequent glass/docking change adds a persisted-dock isolation/serialization JVM test and native drag-to-dock, expand, pause and resume checks. These latest checks remain pending until their CI run completes. Screenshot collection is being corrected independently of test assertions.
+The full-display/gap/background-launch regression passed on the Android 15 emulator in run 34210599896, including the persistent header. The subsequent glass/docking change adds a persisted-dock isolation/serialization JVM test and native drag-to-dock, expand, pause and resume checks. These checks passed in run 34212566530; screenshot review then found clipped dock digits, corrected in the final revision below.
+
+
+## Verified alpha 02 build — d95fcf7
+
+[Run 34213996335](https://github.com/Ezral/HaloTimer/actions/runs/34213996335) passed the JVM test, Android lint, debug APK and Android 15 emulator jobs. The core suite contains 29 passing tests. The native suite reports 1 test, 0 failures, 0 errors and 0 skipped tests.
+
+Native checks cover full-display overlay bounds, three 4dp lane cores separated by transparent 2dp gaps, touch-through, MM:SS adjustment, themes, automatic return to Home, drag-to-dock, drag inward to expand, floating pause/reset/play and editor reset. Eight screenshots were collected. Visual review confirmed stacked dock digits and a label outside the half-circle, light floating controls over Home, the persistent header and corrected dark status-bar icons. Rotation is disabled by the emulator's reduced-animation setting; animated label motion, right-edge docking, gesture-navigation conflicts and native backdrop blur still require physical-device review.
+
+[Download the tested APK artifact](https://github.com/Ezral/HaloTimer/actions/runs/34213996335/artifacts/10051124728). Expanded pills request native background blur only when supported; the dock uses a circular translucent tint and shadow. Full bounds do not override the normal system UI stacking order. The Samsung/OEM idle, haptic, accessibility and production-release gates above remain open.
