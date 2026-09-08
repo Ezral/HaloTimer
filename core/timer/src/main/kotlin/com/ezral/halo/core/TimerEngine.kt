@@ -9,6 +9,7 @@ const val MAX_MS = 5_999_000L
 
 @Serializable enum class Status { READY, RUNNING, PAUSED, COMPLETED, INTERRUPTED }
 @Serializable enum class AlertStyle { BREATHE, ORBIT, PING_PONG, DOUBLE_PONG }
+@Serializable enum class DockSide { NONE, LEFT, RIGHT }
 @Serializable enum class HapticStyle { OFF, DOUBLE_TAP, MORSE }
 @Serializable data class Step(val name: String = "Timer", val durationMs: Long = 300_000L)
 @Serializable data class Definition(
@@ -24,6 +25,7 @@ const val MAX_MS = 5_999_000L
     val morse: String = "TIME",
     val glow: Float = 0.5f,
     val hidden: Boolean = false,
+    val dock: DockSide = DockSide.NONE,
     val x: Float = 0.82f,
     val y: Float = 0.20f + id * 0.16f,
 ) {
@@ -79,7 +81,7 @@ sealed interface Command {
     data class Edit(val definition: Definition) : Command
     data class Adjust(val target: AdjustmentTarget, val deltaMs: Long) : Command
     data class Hide(val id: Int, val hidden: Boolean) : Command
-    data class Move(val id: Int, val x: Float, val y: Float) : Command
+    data class Move(val id: Int, val x: Float, val y: Float, val dock: DockSide? = null) : Command
     data object ShowAll : Command
     data object StopAll : Command
     data object Tick : Command
@@ -165,7 +167,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 } else t
             }
             is Command.Hide -> change(command.id) { it.copy(definition = it.definition.copy(hidden = command.hidden)) }
-            is Command.Move -> change(command.id) { it.copy(definition = it.definition.copy(x = command.x.coerceIn(0f, 1f), y = command.y.coerceIn(0f, 1f))) }
+            is Command.Move -> change(command.id) { it.copy(definition = it.definition.copy(x = command.x.coerceIn(0f, 1f), y = command.y.coerceIn(0f, 1f), dock = command.dock ?: it.definition.dock)) }
             Command.ShowAll -> state = state.copy(tracks = state.tracks.map { it.copy(definition = it.definition.copy(hidden = false)) })
             Command.StopAll -> state = state.copy(tracks = state.tracks.map { it.copy(session = null) }, outbox = emptyList())
             Command.Tick -> Unit

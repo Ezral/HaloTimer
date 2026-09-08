@@ -11,6 +11,18 @@ class TimerEngineTest {
     private fun all(duration: Long = 60_000) = Snapshot(boot = 7, tracks = (0..2).map { Track(Definition(it, active = true, durationMs = duration)) })
     private fun run(s: Snapshot = all(), now: Long = 1_000) = engine.apply(s, Command.Start(setOf(0, 1, 2)), now).snapshot
     private fun sequence(steps: List<Step> = pourOver) = all().let { s -> s.copy(tracks = s.tracks.map { it.copy(definition = it.definition.copy(sequence = true, steps = steps)) }) }
+    @Test fun dockPersistsWithoutChangingTimerOrOtherTracks() {
+        val s = run()
+        val docked = engine.apply(s, Command.Move(0, 0f, 0.4f, DockSide.LEFT), 2_000).snapshot
+        assertEquals(s.tracks[0].session, docked.tracks[0].session)
+        assertEquals(s.tracks.drop(1), docked.tracks.drop(1))
+        assertEquals(DockSide.LEFT, Json.decodeFromString<Snapshot>(Json.encodeToString(Snapshot.serializer(), docked)).tracks[0].definition.dock)
+        val moved = engine.apply(docked, Command.Move(0, 0f, 0.5f), 3_000).snapshot
+        assertEquals(DockSide.LEFT, moved.tracks[0].definition.dock)
+        val restored = engine.apply(moved, Command.Move(0, 0.2f, 0.5f, DockSide.NONE), 4_000).snapshot
+        assertEquals(s.tracks[0].session, restored.tracks[0].session)
+        assertEquals(DockSide.NONE, Json.decodeFromString<Definition>("{\"id\":0}").dock)
+    }
     @Test fun launchAllUsesOneTimestamp() {
         val s = run(); assertEquals(listOf(61_000L, 61_000L, 61_000L), s.tracks.map { it.session!!.deadlineMs })
         assertEquals(3, s.tracks.map { it.session!!.id }.distinct().size)

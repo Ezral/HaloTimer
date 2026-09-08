@@ -66,6 +66,38 @@ class HaloSmokeTest {
         } finally { rule.runOnUiThread { manager.removeViewImmediate(view) } }
     }
 
+    private fun overlayNode(description: String): android.view.accessibility.AccessibilityNodeInfo? {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val config = automation.serviceInfo
+        config.flags = config.flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        automation.serviceInfo = config
+        fun find(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
+            if (node == null) return null
+            if (node.contentDescription?.toString()?.contains(description) == true) return node
+            for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
+            return null
+        }
+        return automation.windows.firstNotNullOfOrNull { find(it.root) }
+    }
+
+    private fun checkGlassDockAndPlayback() {
+        val c = (rule.activity.application as HaloApplication).coordinator
+        rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
+        val bounds = android.graphics.Rect()
+        overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
+        shell("input swipe ${bounds.centerX()} ${bounds.centerY()} 0 ${bounds.centerY()} 600")
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.LEFT }
+        rule.waitUntil(5_000) { overlayNode("Tap or drag inward to expand") != null }
+        screenshot("07-left-docked-glass")
+        overlayNode("Tap or drag inward to expand")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.NONE && overlayNode("Pause Timer A") != null }
+        overlayNode("Pause Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED && overlayNode("Play Timer A") != null }
+        screenshot("08-paused-glass")
+        overlayNode("Play Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
+    }
+
     private fun screenshot(name: String) {
         rule.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -100,6 +132,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session != null }
         rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() }
         screenshot("05-running-over-home")
+        checkGlassDockAndPlayback()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
         rule.waitUntil(5_000) { rule.activity.hasWindowFocus() }
         rule.onNodeWithText("Pause").assertExists()

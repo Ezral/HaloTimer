@@ -71,3 +71,12 @@ Start/resume commits valid runtime state, requests the foreground service while 
 The emulator smoke test checks the actual attached overlay's origin and full physical dimensions, transparent 2dp gaps in the rendered pixels, a tap through the decorative overlay, and loss of Activity focus after starting. Screenshots include the three-lane full-display overlay and a timer over home. Samsung confirmation of the revised bounds is still needed.
 
 The owner subsequently requested Start timer / Start all / Stop all at the top right. Alpha 02 places these in a persistent toolbar, visible while settings scroll; the selected action becomes Pause/Resume according to state. Duplicate launch/stop controls were removed from the scrolling body.
+
+
+## ADR 010 — Light glass and edge docking
+
+Floating controls stay light regardless of editor theme. Small non-modal overlay Dialog windows expose the public Android 12+ background blur API; the window shape limits blur to the control. No screen capture or whole-screen blur is used. Capability is checked on runtime ticks, with stronger light tint when unsupported/disabled. Pause/play, reset, menu and hide replace duration adjustment buttons.
+
+Dragging a pill to either side persists a DockSide with normalized position. A 144 dp circle window extends halfway off-screen; its 96 dp glass circle contains stacked minutes/seconds in the visible half, with a rotating name around its rim. Tap or drag inward to expand; long press opens settings. Reduced motion stops label rotation. Docking does not change timer deadlines, and older stored definitions default to undocked.
+
+Reference: https://source.android.com/docs/core/display/window-blurs
