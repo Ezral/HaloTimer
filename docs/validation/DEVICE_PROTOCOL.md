@@ -58,3 +58,12 @@ Attach evidence for R01–R24 to STATUS.md. Resolve failures, profile frame paci
 - Hold the dock: four disconnected bubbles should spring to equally spaced arc positions. Slide and release to select; release outside to cancel. Test near the top/bottom display limits as well as the center.
 - Enable Reduce motion and repeat: controls should switch immediately and the action bubbles should appear at their final positions.
 - Scroll both light and dark menus; cards should pass under the softly elevated persistent header, while the header action targets remain clickable.
+
+## Alpha05 floating surfaces and motion
+
+- Confirm bar/dock/circle use one flat tint, no gradient or perimeter stroke. Bar has Primary, Reset, Hide; Primary is Pause while running, Play when paused/reset, Stop when completed.
+- Drag a bar to each edge slowly: an attached liquid neck/bud grows near the edge. Release to merge into the half dock. Pull away to stretch/separate; the full circle appears during the drag, then morphs into the bar on release.
+- Half-dock labels traverse only the visible arc and immediately re-enter after leaving it, without waiting through the hidden semicircle. A fully visible dragged circle rotates through all 360 degrees. Check at 60/120 Hz on a physical phone.
+- Long-press either dock: three evenly spaced actions emerge. Release on/off a target; bubbles retract before the selected action executes. Repeat quickly, enter the menu during retraction, stop all, revoke overlay permission, and rotate the device; no abandoned windows or delayed restart should remain.
+- Reduced motion removes the animated attachment and retraction; controls remain usable.
+- Transition target duration is 240 ms, with vsync-driven redraw; physical-device smoothness still needs validation.

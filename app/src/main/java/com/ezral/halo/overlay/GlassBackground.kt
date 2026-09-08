@@ -9,8 +9,8 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 
 /** Insets the glass shape without adding content padding to a floating Window. */
-internal class GlassBackground(colors: IntArray, radius: Float, private val inset: Int = 0) : Drawable() {
-    private val shape = GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply { cornerRadius = radius }
+internal class GlassBackground(color: Int, radius: Float, private val inset: Int = 0) : Drawable() {
+    private val shape = GradientDrawable().apply { setColor(color); cornerRadius = radius }
     override fun onBoundsChange(bounds: Rect) {
         shape.setBounds(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
     }

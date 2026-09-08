@@ -6,54 +6,68 @@ import android.os.SystemClock
 import android.view.View
 import com.ezral.halo.core.*
 
-/** A full circle deliberately positioned halfway outside the display. */
+/** A circle that becomes a half dock when its window crosses the physical display edge. */
 class DockedTimerView(context: Context) : View(context) {
     var track: Track? = null
     var reducedMotion = false
+    var fullCircle = false
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPath = Path()
+    private val ink = Rect()
     private val digits = resources.getFont(com.ezral.halo.R.font.jetbrains_mono_regular)
     private val labelFont = resources.getFont(com.ezral.halo.R.font.poppins_bold)
-    init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
+    private val textPaint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = labelFont; textSize = 15*d }
+    private var cachedLabel = ""
+    private var sourceLabel = ""
+    private var cachedFull = false
+    private var labelWidth = 0f
+    private val born = SystemClock.elapsedRealtime()
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val t = track ?: return
         val s = t.session ?: return
         val now = SystemClock.elapsedRealtime()
-        val cx = width / 2f; val cy = height / 2f; val radius = 48 * d
-        // Keep the orbiting label outside the glass without a rectangular window-blur footprint.
-        paint.style = Paint.Style.FILL
-        val line = t.definition.color.toInt()
-        paint.shader = HaloGlass.shader(RectF(cx - radius, cy - radius, cx + radius, cy + radius), line)
-        paint.setShadowLayer(8 * d, 0f, 2 * d, 0x30000000)
+        val cx = width/2f; val cy = height/2f; val radius = 48*d
+        paint.style = Paint.Style.FILL; paint.shader = null
+        paint.color = HaloGlass.color(t.definition.color.toInt())
         canvas.drawCircle(cx, cy, radius, paint)
-        paint.shader = null; paint.clearShadowLayer()
-        paint.color = t.definition.color.toInt(); paint.style = Paint.Style.STROKE; paint.strokeWidth = 2 * d
-        val progress = (s.remaining(now).toFloat() / s.stepDurationMs.coerceAtLeast(1)).coerceIn(0f, 1f)
-        canvas.drawArc(cx - radius + d, cy - radius + d, cx + radius - d, cy + radius - d, -90f, 360 * progress, false, paint)
-        paint.style = Paint.Style.FILL; paint.color = 0xFF303644.toInt()
-        paint.typeface = digits; paint.textSize = 18 * d; paint.textAlign = Paint.Align.CENTER
-        val textX = cx + if (t.definition.dock == DockSide.LEFT) radius / 2 else -radius / 2
+        paint.color = 0xFF303644.toInt(); paint.typeface = digits
+        paint.textSize = 18*d; paint.textAlign = Paint.Align.CENTER
+        val textX = if (fullCircle) cx else cx + if (t.definition.dock == DockSide.LEFT) radius/2 else -radius/2
         val parts = formatTime(s.remaining(now)).split(":")
-        // Center the actual numeral ink as a two-line block inside the visible half-circle.
-        val ink = Rect(); paint.getTextBounds("0123456789", 0, 10, ink)
-        val spacing = ink.height() + 6 * d
-        val middleBaseline = cy - (ink.top + ink.bottom) / 2f
-        canvas.drawText(parts[0], textX, middleBaseline - spacing / 2, paint)
-        canvas.drawText(parts[1], textX, middleBaseline + spacing / 2, paint)
-        paint.textSize = 15 * d; paint.typeface = labelFont; paint.textAlign = Paint.Align.LEFT
-        paint.color = t.definition.color.toInt()
-        labelPath.reset(); labelPath.addCircle(cx, cy, 59 * d, Path.Direction.CW)
+        paint.getTextBounds("0123456789", 0, 10, ink)
+        val spacing = ink.height()+6*d
+        val baseline = cy-(ink.top+ink.bottom)/2f
+        canvas.drawText(parts[0], textX, baseline-spacing/2, paint)
+        canvas.drawText(parts[1], textX, baseline+spacing/2, paint)
+        val source = t.overlayLabel()
+        val orbitRadius = 59*d
+        val arc = (Math.PI*orbitRadius*(if (fullCircle) 2 else 1)).toFloat()
+        if (source != sourceLabel || cachedFull != fullCircle) {
+            sourceLabel=source; cachedFull=fullCircle
+            cachedLabel=android.text.TextUtils.ellipsize(source,textPaint,arc*.92f,android.text.TextUtils.TruncateAt.END).toString()
+            labelWidth=textPaint.measureText(cachedLabel)
+        }
+        paint.typeface=labelFont; paint.textSize=15*d; paint.textAlign=Paint.Align.LEFT
+        paint.color=t.definition.color.toInt()
+        labelPath.reset()
+        val start = if (fullCircle || t.definition.dock==DockSide.LEFT) -90f else 90f
+        labelPath.addArc(cx-orbitRadius,cy-orbitRadius,cx+orbitRadius,cy+orbitRadius,start,360f)
+        val distance = if (reducedMotion) 0f else ((now-born)/1000f * (2*Math.PI*orbitRadius/6).toFloat())
+        // A clipped dock scrolls only through its visible semicircle, with no invisible half-turn wait.
+        // A freely dragged full circle makes an uninterrupted full revolution.
+        val offset = if (fullCircle) distance%arc else if (reducedMotion) 0f else distance%(arc+labelWidth)-labelWidth
         canvas.save()
-        if (!reducedMotion) canvas.rotate((now % 16_000) / 16_000f * 360, cx, cy)
-        val fullLabel = t.overlayLabel()
-        // Keep one label on the circumference without overlapping its own beginning.
-        val label = android.text.TextUtils.ellipsize(fullLabel, android.text.TextPaint(paint),
-            (2 * Math.PI * 59 * d * .94).toFloat(), android.text.TextUtils.TruncateAt.END).toString()
-        // One solid label orbits the outside; it is intentionally not repeated around the circle.
-        canvas.drawTextOnPath(label, labelPath, 0f, 0f, paint)
-        canvas.restore(); paint.clearShadowLayer()
-        if (isAttachedToWindow && !reducedMotion) postInvalidateDelayed(33)
+        if (!fullCircle) {
+            if (t.definition.dock==DockSide.LEFT) canvas.clipRect(cx,0f,width.toFloat(),height.toFloat())
+            else canvas.clipRect(0f,0f,cx,height.toFloat())
+        }
+        if (fullCircle) {
+            canvas.rotate(offset/arc*360f,cx,cy)
+            canvas.drawTextOnPath(cachedLabel,labelPath,0f,0f,paint)
+        } else canvas.drawTextOnPath(cachedLabel,labelPath,offset,0f,paint)
+        canvas.restore()
+        if (isAttachedToWindow && !reducedMotion) postInvalidateOnAnimation()
     }
 }

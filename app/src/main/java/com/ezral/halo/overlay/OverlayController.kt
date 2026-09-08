@@ -28,19 +28,57 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private var actionMenuTrack: Int? = null
     private var actionMenuX = 0
     private var actionMenuY = 0
-    private fun closeActionMenu() {
-        actionMenu?.let { runCatching { wm.removeView(it) } }
-        actionMenu = null; actionMenuTrack = null
+    private val exitingMenus = mutableSetOf<DockActionMenu>()
+    private var magnet: EdgeMagnetView? = null
+    private fun clearMagnet() { magnet?.let { runCatching { wm.removeView(it) } }; magnet=null }
+    private fun closeActionMenu(animated: Boolean = false, after: (() -> Unit)? = null) {
+        val menu=actionMenu
+        actionMenu=null; actionMenuTrack=null
+        if(menu!=null) {
+            if(animated) {
+                exitingMenus+=menu
+                menu.close { val valid=exitingMenus.remove(menu); runCatching { wm.removeView(menu) }; if(valid) after?.invoke() }
+            } else { runCatching { wm.removeView(menu) }; after?.invoke() }
+        } else after?.invoke()
+    }
+    private fun edgeMagnet(body: RectF, side: DockSide, color: Int, pull: Boolean) {
+        if(c.prefs.value.reducedMotion) { clearMagnet(); return }
+        val screen=context.resources.displayMetrics
+        val right=side==DockSide.RIGHT
+        val distance=if(right) screen.widthPixels-body.right else body.left
+        val reach=dp(if(pull) 120 else 48).toFloat()
+        if(distance>reach) { clearMagnet(); return }
+        val strength=(1-distance.coerceAtLeast(0f)/reach).coerceIn(0f,1f)
+        val top=(body.centerY()-dp(100)).toInt().coerceAtLeast(0)
+        val width=(distance.coerceAtLeast(0f)+dp(60)).toInt()
+        val view=magnet ?: EdgeMagnetView(context).also { magnet=it }
+        val params=WindowManager.LayoutParams(width,dp(200),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            PixelFormat.TRANSLUCENT).apply {
+            gravity=Gravity.TOP or Gravity.LEFT; x=if(right) screen.widthPixels-width else 0; y=top; alpha=.7f
+            title="Halo edge attachment"
+            if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+        }
+        view.right=right; view.color=color; view.strength=strength
+        view.bodyX=if(right) body.right-params.x else body.left
+        view.bodyY=body.centerY()-top; view.halfHeight=body.height()/2
+        try { if(view.isAttachedToWindow) wm.updateViewLayout(view,params) else wm.addView(view,params); view.invalidate() }
+        catch(_: WindowManager.BadTokenException) { clearMagnet() }
+        catch(_: SecurityException) { clearMagnet() }
+    }
+    private fun moveControl(command: Command.Move) {
+        c.scope.launch { c.execute(command); render(c.state.value,c.prefs.value) }
     }
     private fun openActionMenu(id: Int, dock: DockSide, centerY: Int) {
         closeActionMenu()
         val screen = context.resources.displayMetrics
-        val menu = DockActionMenu(context, dock, c.state.value.tracks[id].definition.color.toInt(), c.prefs.value.reducedMotion)
+        val menu = DockActionMenu(context, dock, c.state.value.tracks[id].definition.color.toInt(), c.prefs.value.reducedMotion, c.state.value.tracks[id].session?.status ?: Status.READY)
         actionMenuX = if (dock == DockSide.LEFT) 0 else screen.widthPixels - dp(168)
         actionMenuY = (centerY - dp(144)).coerceIn(0, (screen.heightPixels - dp(288)).coerceAtLeast(0))
         val params = WindowManager.LayoutParams(dp(168), dp(288), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, android.graphics.PixelFormat.TRANSLUCENT).apply {
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, android.graphics.PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.LEFT; x = actionMenuX; y = actionMenuY; alpha = .7f
             title = "Halo dock actions"
             if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
@@ -56,13 +94,13 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         }
     }
     private fun chooseAction(id: Int, action: DockActionMenu.Action?) {
-        closeActionMenu()
-        when (action) {
-            DockActionMenu.Action.PLAY -> if (c.state.value.tracks[id].session?.status != Status.RUNNING) toggle(id)
-            DockActionMenu.Action.PAUSE -> c.submit(Command.Pause(id))
-            DockActionMenu.Action.RESTART -> c.scope.launch { c.execute(Command.Rewind(id)); c.execute(Command.Start(setOf(id))) }
-            DockActionMenu.Action.DISMISS -> c.submit(Command.Reset(id))
-            null -> Unit
+        closeActionMenu(animated=true) {
+            when(action) {
+                DockActionMenu.Action.PRIMARY -> toggle(id)
+                DockActionMenu.Action.RESET -> c.submit(Command.Rewind(id))
+                DockActionMenu.Action.HIDE -> c.submit(Command.Hide(id,true))
+                null -> Unit
+            }
         }
     }
     private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var blur: Boolean? = null, var color: Long? = null)
@@ -116,7 +154,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             val params = WindowManager.LayoutParams(kotlin.math.ceil(area.width()).toInt(), kotlin.math.ceil(area.height()).toInt(),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT).apply {
                 gravity = Gravity.TOP or Gravity.LEFT; x = left; y = top; alpha = .7f; title = "Halo glass transition"
                 if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
@@ -175,7 +213,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     control.blur = blur
                     control.color = t.definition.color
                     val color = visible[id]?.definition?.color?.toInt() ?: 0xFFFFFFFF.toInt()
-                    val glass = GlassBackground(HaloGlass.colors(color), dp(28).toFloat())
+                    val glass = GlassBackground(HaloGlass.color(color), dp(28).toFloat())
                     control.dialog.window!!.apply {
                         setBackgroundDrawable(if (control.dock == DockSide.NONE) glass else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
                         decorView.setPadding(0, 0, 0, 0)
@@ -191,8 +229,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Drag to an edge to dock."
                 }
                 control.play?.apply {
-                    text = if (s.status == Status.RUNNING) "Ⅱ" else "▶"
-                    contentDescription = "${if (s.status == Status.RUNNING) "Pause" else "Play"} ${t.definition.name}"
+                    text = when(s.status) { Status.RUNNING -> "Ⅱ"; Status.COMPLETED,Status.INTERRUPTED -> "■"; else -> "▶" }
+                    contentDescription = "${when(s.status) { Status.RUNNING -> "Pause"; Status.COMPLETED,Status.INTERRUPTED -> "Stop"; else -> "Play" }} ${t.definition.name}"
                 }
                 (control.view as? DockedTimerView)?.apply {
                     track = t; reducedMotion = reduce
@@ -206,16 +244,14 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("track", id))
     private fun toggle(id: Int) {
         val status = c.state.value.tracks[id].session?.status
-        if (status == Status.COMPLETED || status == Status.INTERRUPTED) c.scope.launch {
-            c.execute(Command.Rewind(id)); c.execute(Command.Start(setOf(id)))
-        } else c.submit(if (status == Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
+        if (status == Status.COMPLETED || status == Status.INTERRUPTED) c.submit(Command.Reset(id)) else c.submit(if (status == Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
     }
     private fun createControl(track: Track): Control {
         val id = track.definition.id; val dock = track.definition.dock
         val dialog = Dialog(context, R.style.Theme_Halo_Glass)
         val window = dialog.window!!
         window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        window.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setDimAmount(0f); window.decorView.setPadding(0, 0, 0, 0)
         dialog.setCancelable(false); dialog.setCanceledOnTouchOutside(false)
@@ -247,10 +283,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             }
             play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
             button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
-            button("⋮", "Open Halo settings") { settings(id) }
-            button("×", "Hide or dismiss ${track.definition.name}") {
-                c.submit(if (c.state.value.tracks[id].session?.status == Status.COMPLETED) Command.Reset(id) else Command.Hide(id, true))
-            }
+            button("⌄", "Hide ${track.definition.name}") { c.submit(Command.Hide(id,true)) }
             info.setOnClickListener { toggle(id) }
             dialog.setContentView(root)
         }
@@ -267,7 +300,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             y = (maxY * track.definition.y).toInt(); title = "Halo timer ${track.definition.name}"
         }
         window.attributes = p
-        fun expand(x: Float = if (dock == DockSide.LEFT) 0.05f else 0.95f) = c.submit(Command.Move(id, x.coerceIn(0f, 1f), p.y.toFloat() / maxY.coerceAtLeast(1), DockSide.NONE))
+        fun expand(x: Float = if (dock == DockSide.LEFT) 0.05f else 0.95f) = moveControl(Command.Move(id, x.coerceIn(0f, 1f), p.y.toFloat() / maxY.coerceAtLeast(1), DockSide.NONE))
         if (dock != DockSide.NONE) {
             root.setOnClickListener { expand() }
             root.setOnLongClickListener {
@@ -285,6 +318,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         handle.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { downX = event.rawX; downY = event.rawY; initialX = p.x; initialY = p.y; dragged = false; holding = false
+                    clearMagnet()
                     handle.removeCallbacks(longPress)
                     if (dock != DockSide.NONE) handle.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
                     true }
@@ -299,10 +333,20 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         p.x = (initialX + dx.toInt()).coerceIn(if (dock == DockSide.NONE) 0 else -width / 2, if (dock == DockSide.NONE) maxX else screen.widthPixels - width / 2)
                         p.y = (initialY + dy.toInt()).coerceIn(0, maxY)
                         window.attributes = p
+                        val location=IntArray(2); root.getLocationOnScreen(location)
+                        val body=RectF(location[0].toFloat(),location[1].toFloat(),(location[0]+root.width).toFloat(),(location[1]+root.height).toFloat())
+                        if(dock!=DockSide.NONE) {
+                            body.inset(dp(24).toFloat(),dp(24).toFloat())
+                            (root as? DockedTimerView)?.apply { fullCircle=body.left>=0 && body.right<=screen.widthPixels; invalidate() }
+                        }
+                        val side=if(dock!=DockSide.NONE) dock else if(body.centerX()<screen.widthPixels/2) DockSide.LEFT else DockSide.RIGHT
+                        edgeMagnet(body,side,track.definition.color.toInt(),dock!=DockSide.NONE)
                     }; true
                 }
                 MotionEvent.ACTION_UP -> {
                     handle.removeCallbacks(longPress)
+                    val attached=magnet
+                    handle.postDelayed({ if(magnet===attached) clearMagnet() },260)
                     if (holding) {
                         selectAction(event.rawX, event.rawY)
                         chooseAction(id, actionMenu?.selected); holding = false
@@ -312,15 +356,15 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         if (dock != DockSide.NONE) {
                             val inward = if (dock == DockSide.LEFT) event.rawX - downX else downX - event.rawX
                             if (inward > dp(32)) expand(event.rawX / screen.widthPixels)
-                            else { p.x = initialX; window.attributes = p; c.submit(Command.Move(id, track.definition.x, p.y.toFloat() / maxY.coerceAtLeast(1), dock)) }
+                            else { p.x = initialX; window.attributes = p; (root as? DockedTimerView)?.fullCircle=false; moveControl(Command.Move(id, track.definition.x, p.y.toFloat() / maxY.coerceAtLeast(1), dock)) }
                         } else {
                             val side = when { p.x <= dp(16) -> DockSide.LEFT; p.x >= maxX - dp(16) -> DockSide.RIGHT; else -> DockSide.NONE }
-                            c.submit(Command.Move(id, p.x.toFloat() / maxX.coerceAtLeast(1), p.y.toFloat() / maxY.coerceAtLeast(1), side))
+                            moveControl(Command.Move(id, p.x.toFloat() / maxX.coerceAtLeast(1), p.y.toFloat() / maxY.coerceAtLeast(1), side))
                         }
                     } else v.performClick()
                     true
                 }
-                MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(); p.x = initialX; p.y = initialY; window.attributes = p; true }
+                MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(animated=true); clearMagnet(); (root as? DockedTimerView)?.fullCircle=false; p.x = initialX; p.y = initialY; window.attributes = p; true }
                 else -> false
             }
         }
@@ -329,7 +373,9 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         return Control(dialog, root, dock, info, play)
     }
     fun hideControls() {
+        clearMagnet()
         closeActionMenu()
+        exitingMenus.forEach { runCatching { wm.removeView(it) } }; exitingMenus.clear()
         morphs.keys.toList().forEach { finishMorph(it) }
         retiring.forEach { runCatching { it.dialog.dismiss() } }; retiring.clear()
         controls.values.forEach { runCatching { it.dialog.dismiss() } }; controls.clear()

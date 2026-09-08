@@ -1,12 +1,6 @@
 name: Marketing capture
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/native-halo-android]
-    paths:
-      - 'app/src/androidTest/**'
-      - '.github/scripts/marketing-capture.sh'
-      - '.github/workflows/marketing.yml'
 permissions:
   contents: read
 jobs:

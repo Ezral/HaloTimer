@@ -88,3 +88,7 @@ JetBrains Mono is bundled unchanged under OFL; its license is in `app/src/main/a
 
 
 CI now explicitly points AGP at the cached development keystore. Earlier builds did not actually save that key, so Android may reject an in-place update from those APKs. A one-time uninstall clears local timers/settings; subsequent builds can update in place while the development-key cache is retained. Durable production signing is still a separate release task.
+
+### Alpha05 motion refinement
+
+Flat tinted floating surfaces with no circular progress border; compact Primary/Reset/Hide controls; faster vsync-driven dock labels with visible-arc looping; 240 ms docking morphs; live edge attachment while dragging; and retracting three-action dock menus. A full circle shown while pulling the dock uses the full orbit. Marketing recordings are now explicitly launched through the Marketing capture workflow, rather than every test edit.

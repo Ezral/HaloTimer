@@ -131,6 +131,8 @@ class HaloSmokeTest {
     private fun checkGlassDockAndPlayback() {
         val c = (activity.application as HaloApplication).coordinator
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
+        assertNotNull("Compact bar exposes Hide", overlayNode("Hide Timer A"))
+        assertNull("No settings button in compact bar", overlayNode("Open Halo settings"))
         val bounds = android.graphics.Rect()
         overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
         shell("input swipe ${bounds.centerX()} ${bounds.centerY()} 0 ${bounds.centerY()} 600")
@@ -158,13 +160,13 @@ class HaloSmokeTest {
         val menuTop = (dockBounds.centerY() - 144 * density).coerceAtLeast(0f)
         fun arcX(degrees: Double) = (kotlin.math.cos(Math.toRadians(degrees)) * 108 * density).toFloat()
         fun arcY(degrees: Double) = menuTop + (144 + kotlin.math.sin(Math.toRadians(degrees)) * 108).toFloat() * density
-        dockGesture(arcX(-22.0), arcY(-22.0), true)
+        dockGesture(arcX(-55.0), arcY(-55.0), true)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED }
         // Releasing off the targets cancels without expanding or changing playback.
         dockGesture(160 * density, menuTop + 280 * density)
         assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
         assertEquals(DockSide.LEFT, c.state.value.tracks[0].definition.dock)
-        dockGesture(arcX(-66.0), arcY(-66.0))
+        dockGesture(arcX(-55.0), arcY(-55.0))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
         // Pull the half-circle back into the screen, without touching system back-gesture territory.
         shell("input swipe ${(24 * density).toInt()} ${dockBounds.centerY()} ${(200 * density).toInt()} ${dockBounds.centerY()} 600")
@@ -233,8 +235,8 @@ class HaloSmokeTest {
             assertTrue("Actual completion overlay must move", changed > 0)
         } finally { before.recycle(); after.recycle() }
         screenshot("11-actual-completion")
-        rule.waitUntil(5_000) { overlayNode("Hide or dismiss Timer A") != null }
-        overlayNode("Hide or dismiss Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { overlayNode("Stop Timer A") != null }
+        overlayNode("Stop Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session == null }
     }
 

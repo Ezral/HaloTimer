@@ -21,12 +21,12 @@ internal class DockMorphView(context: Context, private val from: MorphShape, pri
     private val rect = RectF()
     private val font = resources.getFont(R.font.jetbrains_mono_regular)
     private var completed = false
-    init { setLayerType(LAYER_TYPE_SOFTWARE, null); importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
+    init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
     private fun mix(a: Float, b: Float, p: Float) = a + (b - a) * p
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val now = SystemClock.elapsedRealtime()
-        val t = ((now - born) / 420f).coerceIn(0f, 1f)
+        val t = ((now - born) / 240f).coerceIn(0f, 1f)
         val p = t * t * (3 - 2 * t)
         rect.set(mix(from.bounds.left, to.bounds.left, p), mix(from.bounds.top, to.bounds.top, p),
             mix(from.bounds.right, to.bounds.right, p), mix(from.bounds.bottom, to.bounds.bottom, p))
@@ -43,7 +43,7 @@ internal class DockMorphView(context: Context, private val from: MorphShape, pri
         }
         paint.style = Paint.Style.FILL; paint.alpha = 255
         paint.pathEffect = CornerPathEffect(7 * d)
-        paint.shader = HaloGlass.shader(rect, track.definition.color.toInt())
+        paint.color = HaloGlass.color(track.definition.color.toInt())
         paint.setShadowLayer(8 * d, 0f, 2 * d, 0x30000000)
         canvas.drawPath(path, paint)
         paint.shader = null; paint.pathEffect = null; paint.clearShadowLayer()
