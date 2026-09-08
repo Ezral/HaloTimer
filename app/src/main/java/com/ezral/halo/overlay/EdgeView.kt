@@ -3,6 +3,9 @@ package com.ezral.halo.overlay
 import android.content.Context
 import android.graphics.*
 import android.os.SystemClock
+import android.os.Build
+import android.view.WindowInsets
+import android.view.RoundedCorner
 import android.view.View
 import com.ezral.halo.core.*
 import kotlin.math.*
@@ -17,21 +20,39 @@ class EdgeView(context: Context) : View(context) {
     private val path = Path()
     private val rect = RectF()
     private val widthDp = resources.displayMetrics.density * 4f
+    private val gapPx = resources.displayMetrics.density * 2f
+    private var cornerRadii = FloatArray(4) { 28 * resources.displayMetrics.density }
     private var geometryCount = -1
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO; setLayerType(LAYER_TYPE_SOFTWARE, null) }
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { geometryCount = -1 }
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        if (Build.VERSION.SDK_INT >= 31) {
+            val positions = intArrayOf(RoundedCorner.POSITION_TOP_LEFT, RoundedCorner.POSITION_TOP_RIGHT,
+                RoundedCorner.POSITION_BOTTOM_RIGHT, RoundedCorner.POSITION_BOTTOM_LEFT)
+            val radii = FloatArray(4) { index -> insets.getRoundedCorner(positions[index])?.radius?.toFloat() ?: 0f }
+            if (!radii.contentEquals(cornerRadii)) { cornerRadii = radii; geometryCount = -1; invalidate() }
+        }
+        return super.onApplyWindowInsets(insets)
+    }
     private fun geometry() {
         if (geometryCount == tracks.size) return
         measures.clear()
         repeat(tracks.size) { i ->
-            val inset = widthDp / 2 + i * widthDp
-            val radius = (28 * resources.displayMetrics.density - inset).coerceAtLeast(0f)
+            val inset = widthDp / 2 + i * (widthDp + gapPx)
             val l = inset; val t = inset; val r = width - inset; val b = height - inset
-            path.reset(); path.moveTo(width / 2f, t); path.lineTo(r - radius, t)
-            rect.set(r - 2 * radius, t, r, t + 2 * radius); path.arcTo(rect, -90f, 90f)
-            path.lineTo(r, b - radius); rect.set(r - 2 * radius, b - 2 * radius, r, b); path.arcTo(rect, 0f, 90f)
-            path.lineTo(l + radius, b); rect.set(l, b - 2 * radius, l + 2 * radius, b); path.arcTo(rect, 90f, 90f)
-            path.lineTo(l, t + radius); rect.set(l, t, l + 2 * radius, t + 2 * radius); path.arcTo(rect, 180f, 90f)
+            val limit = min(r - l, b - t) / 2
+            val tl = (cornerRadii[0] - inset).coerceIn(0f, limit)
+            val tr = (cornerRadii[1] - inset).coerceIn(0f, limit)
+            val br = (cornerRadii[2] - inset).coerceIn(0f, limit)
+            val bl = (cornerRadii[3] - inset).coerceIn(0f, limit)
+            path.reset(); path.moveTo(width / 2f, t); path.lineTo(r - tr, t)
+            if (tr > 0) { rect.set(r - 2 * tr, t, r, t + 2 * tr); path.arcTo(rect, -90f, 90f) }
+            path.lineTo(r, b - br)
+            if (br > 0) { rect.set(r - 2 * br, b - 2 * br, r, b); path.arcTo(rect, 0f, 90f) }
+            path.lineTo(l + bl, b)
+            if (bl > 0) { rect.set(l, b - 2 * bl, l + 2 * bl, b); path.arcTo(rect, 90f, 90f) }
+            path.lineTo(l, t + tl)
+            if (tl > 0) { rect.set(l, t, l + 2 * tl, t + 2 * tl); path.arcTo(rect, 180f, 90f) }
             path.close(); measures += PathMeasure(path, true)
         }
         geometryCount = tracks.size

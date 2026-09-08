@@ -26,7 +26,10 @@ class MainActivity : ComponentActivity() {
     private var target: AdjustmentTarget? = null
     private var downAt = 0L
     private var exhausted = false
-    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private var pendingLaunch: Pair<String, Int>? = null
+    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        pendingLaunch?.let { (action, id) -> pendingLaunch = null; startRuntime(action, id) }
+    }
     private val repeat = object : Runnable {
         override fun run() {
             val held = SystemClock.elapsedRealtime() - downAt
@@ -57,10 +60,30 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) cancelHold() }
     private fun launchRuntime(action: String, id: Int) {
         cancelHold()
-        try {
-            ContextCompat.startForegroundService(this, Intent(this, HaloRuntimeService::class.java).setAction(action).putExtra("track", id))
-            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } catch (_: RuntimeException) { c.error.value = "Android could not start Halo. Keep the app open and try again." }
+        if (action == "launch" && id >= -1 && Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            pendingLaunch = action to id
+            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else startRuntime(action, id)
+    }
+    private fun startRuntime(action: String, id: Int) {
+        c.scope.launch {
+            val leaveSettings = action == "launch" && id >= -1
+            if (leaveSettings) {
+                val ids = if (id == -1) (0..2).toSet() else setOf(id)
+                c.execute(Command.Start(ids))
+                // Do not leave the editor when all requested starts failed validation.
+                if (ids.none { c.state.value.tracks[it].session?.status == Status.RUNNING }) return@launch
+            }
+            try {
+                ContextCompat.startForegroundService(this@MainActivity,
+                    Intent(this@MainActivity, HaloRuntimeService::class.java).setAction(action).putExtra("track", id))
+                // Reveal the previous task (or home) without guessing which app was last used.
+                if (leaveSettings) moveTaskToBack(true)
+            } catch (_: RuntimeException) {
+                c.error.value = "Android could not start Halo. Keep the app open and try again."
+            }
+        }
     }
     private fun cancelHold() { handler.removeCallbacks(repeat); heldKey = null; target = null; exhausted = false }
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = handleVolume(event) || super.onKeyDown(keyCode, event)

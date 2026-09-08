@@ -2,7 +2,7 @@
 
 A native, quiet Android timer that keeps time in view while you use other apps.
 
-Halo has three independent timer tracks, named sequences, adjacent colored edge progress, translucent floating controls, and visual or Morse vibration alerts. Kotlin + Jetpack Compose; no WebView, account, ads, analytics SDK, or runtime network permission.
+Halo has three independent timer tracks, named sequences, colored edge progress, translucent floating controls, and visual or Morse vibration alerts. Kotlin + Jetpack Compose; no WebView, account, ads, analytics SDK, or runtime network permission.
 
 **Status: internal alpha, not a production-qualified release.** See [validation status](docs/validation/STATUS.md) before relying on background alerts. The [implementation plan](docs/HALO_ANDROID_IMPLEMENTATION_PLAN.md) remains the acceptance baseline.
 
@@ -11,7 +11,7 @@ Halo has three independent timer tracks, named sequences, adjacent colored edge 
 1. Open this project in Android Studio with JDK 17 and Android SDK 36.
 2. Select the `app` debug variant and run it on Android 8.0 or newer.
 3. Enable **Display over other apps** in Halo's Permissions card for the edge overlay. Notification and precise-alarm access are separately optional.
-4. Set a duration, or choose Sequence and add steps. Start a timer, then switch to another app.
+4. Set a duration, or choose Sequence and add steps. Start a timer: Halo returns to the previous app or home, with the overlay running. Preview keeps settings open.
 5. Tap the floating time to pause/resume, drag it to move, use `⋮` for settings, or `×` to hide it. Restore controls from Halo or the ongoing notification.
 
 Alternatively, download `halo-debug-apk` from a successful [Android CI run](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml). CI artifacts require a GitHub login. This APK uses debug signing and the separate package `com.ezral.halo.debug`.
@@ -57,3 +57,9 @@ Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and 
 - `docs/validation`: acceptance mapping and reproducible device protocol.
 
 The provisional production application ID is `com.ezral.halo`; confirm ownership before signing a production build. Release signing is intentionally not configured. Do not distribute a debug key as a production identity.
+
+## Alpha 02 — phone feedback
+
+The decorative halo now uses full display coordinates, including the status and navigation bar regions, with a 2dp gap between 4dp tracks. On Android 12+, reported physical corner radii shape the border. Starting/resuming sends Halo to the background; preview stays in settings. System UI retains its normal z-order: opaque system surfaces can still cover a normal application overlay.
+
+The first alpha used an ephemeral CI debug signing key. Android may require a one-time uninstall of alpha 01 before installing this build; uninstalling clears local timers/settings. Subsequent CI builds cache the debug keystore within this review branch to support in-place development updates while that cache is retained. Production signing remains separate and unconfigured.

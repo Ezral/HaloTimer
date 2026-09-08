@@ -217,7 +217,7 @@ fun HaloScreen(
                 }
                 if (state.tracks.count { it.definition.active } > 1) Button(onClick = { focus.clearFocus(); onLaunch(-1) }, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) { Text("Start all active timers") }
                 if (state.tracks.any { it.session != null }) TextButton(onClick = { c.submit(Command.StopAll) }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Stop all timers") }
-                Text("HALO  /  0.1 ALPHA", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  0.1 ALPHA 02", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
         }

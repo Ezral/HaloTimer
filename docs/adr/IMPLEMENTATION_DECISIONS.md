@@ -57,3 +57,15 @@ Use Room v1 with a single serialized checkpoint row containing all three definit
 Save on semantic changes only; displayed seconds/frames do not write storage. Hold a mutex through state transition, commit and effect handoff. A storage error retains the database and stops further mutation with an interruption message; never fall back to destructive migration or silently overwrite unreadable data. CI exports the Room schema as a report artifact; the generated v1 schema is committed under app/schemas.
 
 Before release, add on-device database recreation/migration tests, bounds/schema validation on restore, and fault injection at persistence/effect boundaries. JVM serialization tests already cover immutable run snapshots and outbox round trips.
+
+## ADR-009 — Full-display decoration and separated lanes (alpha 02)
+
+Owner device feedback confirmed that the timer/features worked but the original overlay frame stopped at the app's usable area. The owner also requested gaps between lines and automatic return to the prior app/home at Start. These supersede the plan's original no-gap preference.
+
+Use `FLAG_LAYOUT_IN_SCREEN`, `setFitInsetsTypes(0)` and `LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS` on API 30+ for the decoration. On API 26–29 use the layout-in-screen/no-limits fallback, with short-edge cutout support on API 28+. Keep the decorative surface non-focusable/non-touchable and below the platform's obscuring-opacity cap. Interactive control windows retain safe-area layout. Keyboard appearance must not shrink the full-display decoration.
+
+Use 4dp strokes with 2dp separation. On API 31+, obtain each physical corner radius from WindowInsets and rebuild paths when those change. The legacy fallback remains 28dp. This changes the layout rectangle, not overlay privileges: system UI and protected screens may still draw above Halo. See [WindowManager.LayoutParams](https://developer.android.com/reference/android/view/WindowManager.LayoutParams) and [rounded corners](https://developer.android.com/develop/ui/views/layout/insets/rounded-corners).
+
+Start/resume commits valid runtime state, requests the foreground service while the Activity is visible, then calls `moveTaskToBack(true)` to reveal the prior task or home. Invalid starts keep the editor open. Preview and Show controls do not minimize the app. No app-history/usage permission is requested.
+
+The emulator smoke test checks the actual attached overlay's origin and full physical dimensions, transparent 2dp gaps in the rendered pixels, a tap through the decorative overlay, and loss of Activity focus after starting. Screenshots include the three-lane full-display overlay and a timer over home. Samsung confirmation of the revised bounds is still needed.

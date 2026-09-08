@@ -30,17 +30,12 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private fun dp(v: Int) = (v * density).toInt()
     fun preview(id: Int) { previewId = id; previewUntil = SystemClock.elapsedRealtime() + 5_000 }
     fun previewing() = previewUntil > SystemClock.elapsedRealtime()
-    private fun params(w: Int, h: Int, decorative: Boolean) = WindowManager.LayoutParams(
-        w, h, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-            (if (decorative) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0), PixelFormat.TRANSLUCENT
-    ).apply {
-        gravity = Gravity.TOP or Gravity.LEFT
-        if (decorative) {
-            val maximum = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(InputManager::class.java).maximumObscuringOpacityForTouch else 0.8f
-            alpha = minOf(0.75f, maximum) // Only one full-screen SAW window; never change system policy.
-        }
-    }
+    private fun controlParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.LEFT }
     fun render(state: Snapshot, preferences: Preferences) {
         if (!Settings.canDrawOverlays(context)) { removeAll(); return }
         val now = SystemClock.elapsedRealtime()
@@ -57,7 +52,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         try {
             if (edge == null) {
                 edge = EdgeView(context)
-                wm.addView(edge, params(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT, true))
+                wm.addView(edge, EdgeWindowLayout.create(context))
             }
             edge?.apply { this.tracks = tracks; reducedMotion = preferences.reducedMotion || !android.animation.ValueAnimator.areAnimatorsEnabled(); invalidate() }
             val visible = tracks.filterNot { it.definition.hidden }.map { it.definition.id }.toSet()
@@ -101,7 +96,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         button("⋮", "Open Halo settings") { context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("track", id)) }
         button("×", "Hide ${track.definition.name} control") { c.submit(Command.Hide(id, true)) }
         // Wrap-content window contains only actual controls; never a full-display touch pane.
-        val p = params(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, false)
+        val p = controlParams()
         root.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val screen = context.resources.displayMetrics
         val maxX = (screen.widthPixels - root.measuredWidth).coerceAtLeast(0)

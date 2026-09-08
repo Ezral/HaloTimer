@@ -30,3 +30,9 @@ Date: 2026-09-08. Initial implementation against the product plan. This report d
 5. Verify notification-only long haptic delivery when an alarm wakes a reclaimed process. No unconditional foreground-service restart is used.
 6. Add user-facing export of timing diagnostics without private timer text, native screenshot regression coverage, and release localization.
 7. Confirm production package identity, signing, current target requirements and distribution declarations. No production signing or store deployment was performed.
+
+## Owner feedback and alpha 02 regression
+
+The owner tested the first debug APK on their phone and reported that the halo and other features worked well. Two display revisions were requested: use the real display perimeter, including system-bar regions, and add gaps between lanes. A third request makes Start return to the previous app/home. Alpha 02 implements these; see ADR-009. This is owner feedback, not a substitute for the complete physical-device matrix.
+
+Alpha 01 had 27 passing JVM tests, a passing Android lint/debug build, and a passing Android 15 emulator smoke test (run 34208242394). Alpha 02 adds attached-window bounds, rendered lane-gap, touch-through and background-launch checks to the emulator test.
