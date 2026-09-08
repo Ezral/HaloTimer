@@ -99,6 +99,7 @@ class HaloSmokeTest {
                     }
                 } finally { frames.forEach { it.recycle() } }
             }
+            rule.runOnUiThread { view.reducedMotion = true }
             // The decorative window must not consume a tap on the app beneath it.
             rule.onNodeWithContentDescription("Decrease seconds").performClick()
             rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
@@ -113,7 +114,7 @@ class HaloSmokeTest {
         automation.serviceInfo = config
         fun find(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
             if (node == null) return null
-            if (node.contentDescription?.toString()?.contains(description) == true) return node
+            if (node.contentDescription?.toString()?.contains(description) == true || node.text?.toString() == description) return node
             for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
             return null
         }
@@ -235,7 +236,7 @@ class HaloSmokeTest {
         android.util.Log.i("HaloQA", "Captured $name")
     }
 
-    @Test fun nativeEditorThemesAndRuntime() = try {
+    @Test(timeout = 180_000) fun nativeEditorThemesAndRuntime() = try {
         if (android.os.Build.VERSION.SDK_INT >= 33) InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission("com.ezral.halo.debug", android.Manifest.permission.POST_NOTIFICATIONS)
         rule.waitUntil(10_000) { (activity.application as HaloApplication).coordinator.ready.value }
         val launcherError = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
@@ -267,12 +268,13 @@ class HaloSmokeTest {
         checkGlassDockAndPlayback()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
         rule.waitUntil(5_000) { activity.hasWindowFocus() }
-        rule.onNodeWithContentDescription("Pause timer").assertExists()
+        rule.waitUntil(5_000) { overlayNode("Pause timer") != null }
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") == null && overlayNode("Tap or drag inward to expand") == null }
         screenshot("06-running-settings")
-        rule.onNodeWithContentDescription("Pause timer").performClick()
+        overlayNode("Pause timer")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session?.status == com.ezral.halo.core.Status.PAUSED }
-        rule.onNodeWithText("Reset").performScrollTo().performClick()
+        rule.waitUntil(5_000) { overlayNode("Reset") != null }
+        overlayNode("Reset")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
         checkRealCompletion()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
