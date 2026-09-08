@@ -85,15 +85,33 @@ fun HaloScreen(
             val accent = Color(d.color)
             val scroll = rememberScrollState()
             var pendingPreset by remember { mutableStateOf<List<Step>?>(null) }
-            Column(Modifier.safeDrawingPadding().verticalScroll(scroll).padding(horizontal = 22.dp).padding(top = 28.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("halo", fontSize = 42.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
+            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("halo", fontSize = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = {
+                                focus.clearFocus()
+                                if (s?.status == Status.RUNNING) c.submit(Command.Pause(selected)) else onLaunch(selected)
+                            }, enabled = ready && d.active && s?.status !in listOf(Status.COMPLETED, Status.INTERRUPTED),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
+                                Text(when (s?.status) { Status.RUNNING -> "Pause"; Status.PAUSED -> "Resume"; else -> "Start timer" }, fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                            }
+                            FilledTonalButton(onClick = { focus.clearFocus(); onLaunch(-1) }, enabled = ready && state.tracks.any { it.definition.active },
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
+                                Text("Start all", fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                            }
+                            TextButton(onClick = { c.submit(Command.StopAll) }, enabled = ready && state.tracks.any { it.session != null },
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
+                                Text("Stop all", fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                            }
+                        }
                     }
-                    TextButton(onClick = { c.scope.launch { c.preferences.theme(when (prefs.theme) { "System" -> "Light"; "Light" -> "Dark"; else -> "System" }) } }) {
+                    TextButton(onClick = { c.scope.launch { c.preferences.theme(when (prefs.theme) { "System" -> "Light"; "Light" -> "Dark"; else -> "System" }) } }, modifier = Modifier.align(Alignment.End)) {
                         Text(if (dark) "◐  ${prefs.theme}" else "◑  ${prefs.theme}")
                     }
                 }
+                Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 22.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.tracks.forEach { t ->
                         val isSelected = selected == t.definition.id
@@ -159,14 +177,8 @@ fun HaloScreen(
                         TextButton(onClick = { c.submit(Command.Edit(d.copy(steps = d.steps + Step("Step ${d.steps.size + 1}", 60_000)))) }, enabled = d.steps.size < 50) { Text("+ Add timer") }
                         Text("Total ${formatTime(d.steps.sumOf { it.durationMs })}", color = scheme.onSurfaceVariant)
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = {
-                            focus.clearFocus()
-                            if (s?.status == Status.RUNNING) c.submit(Command.Pause(selected)) else onLaunch(selected)
-                        }, enabled = ready && d.active && s?.status !in listOf(Status.COMPLETED, Status.INTERRUPTED), modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
-                            Text(when (s?.status) { Status.RUNNING -> "Pause"; Status.PAUSED -> "Resume"; else -> "Start timer" })
-                        }
-                        if (s != null) OutlinedButton(onClick = { c.submit(Command.Reset(selected)) }, modifier = Modifier.heightIn(min = 52.dp)) { Text(if (s.status == Status.COMPLETED) "Dismiss" else "Reset") }
+                    if (s != null) OutlinedButton(onClick = { c.submit(Command.Reset(selected)) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(if (s.status == Status.COMPLETED) "Dismiss" else "Reset")
                     }
                 }
                 HaloCard {
@@ -215,9 +227,8 @@ fun HaloScreen(
                     if (!notifications) TextButton(onClick = onNotificationPermission) { Text("Enable timer notifications") }
                     Text(if (!exact) "Screen-off alerts may be delayed." else "Short sequence alerts during deep sleep still depend on Android.", color = scheme.onSurfaceVariant, fontSize = 12.sp)
                 }
-                if (state.tracks.count { it.definition.active } > 1) Button(onClick = { focus.clearFocus(); onLaunch(-1) }, enabled = ready, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) { Text("Start all active timers") }
-                if (state.tracks.any { it.session != null }) TextButton(onClick = { c.submit(Command.StopAll) }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Stop all timers") }
                 Text("HALO  /  0.1 ALPHA 02", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+            }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
         }

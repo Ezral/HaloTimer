@@ -69,3 +69,5 @@ Use 4dp strokes with 2dp separation. On API 31+, obtain each physical corner rad
 Start/resume commits valid runtime state, requests the foreground service while the Activity is visible, then calls `moveTaskToBack(true)` to reveal the prior task or home. Invalid starts keep the editor open. Preview and Show controls do not minimize the app. No app-history/usage permission is requested.
 
 The emulator smoke test checks the actual attached overlay's origin and full physical dimensions, transparent 2dp gaps in the rendered pixels, a tap through the decorative overlay, and loss of Activity focus after starting. Screenshots include the three-lane full-display overlay and a timer over home. Samsung confirmation of the revised bounds is still needed.
+
+The owner subsequently requested Start timer / Start all / Stop all at the top right. Alpha 02 places these in a persistent toolbar, visible while settings scroll; the selected action becomes Pause/Resume according to state. Duplicate launch/stop controls were removed from the scrolling body.

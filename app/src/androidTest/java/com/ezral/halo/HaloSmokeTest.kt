@@ -96,7 +96,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.prefs.value.theme == "Dark" }
         screenshot("03-dark-editor")
         checkFullDisplayAndSpacing()
-        rule.onNodeWithText("Start timer").performScrollTo().performClick()
+        rule.onNodeWithText("Start timer").performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session != null }
         rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() }
         screenshot("05-running-over-home")
