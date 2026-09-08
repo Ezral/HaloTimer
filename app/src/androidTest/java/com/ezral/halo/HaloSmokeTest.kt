@@ -186,6 +186,11 @@ class HaloSmokeTest {
         val dockBounds = android.graphics.Rect()
         overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
         val density = activity.resources.displayMetrics.density
+        fun actionWindowPresent(): Boolean {
+            val command=InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("dumpsys window windows")
+            val dump=ParcelFileDescriptor.AutoCloseInputStream(command).bufferedReader().use { it.readText() }
+            return dump.lineSequence().any { "Window #" in it && "Halo dock actions" in it }
+        }
         fun dockGesture(targetX: Float, targetY: Float, capture: Boolean = false) {
             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
             val down = SystemClock.uptimeMillis()
@@ -197,7 +202,7 @@ class HaloSmokeTest {
             pointer(android.view.MotionEvent.ACTION_DOWN, 24 * density, dockBounds.centerY().toFloat())
             SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 600L)
             rule.waitUntil(5_000) {
-                automation.windows.any { it.title?.toString() == "Halo dock actions" }
+                actionWindowPresent()
             }
             if (capture) screenshot("12-dock-blob-menu")
             pointer(android.view.MotionEvent.ACTION_MOVE, targetX, targetY)
@@ -205,9 +210,9 @@ class HaloSmokeTest {
             // Cancellation has no timer-state change to await. Wait for the actual window
             // removal, including WindowManager/input-stack propagation after its exit frames.
             rule.waitUntil(5_000) {
-                automation.windows.none { it.title?.toString() == "Halo dock actions" }
+                !actionWindowPresent()
             }
-            SystemClock.sleep(150)
+            SystemClock.sleep(200)
         }
         val menuTop = (dockBounds.centerY() - 144 * density).coerceAtLeast(0f)
         fun arcX(degrees: Double) = (kotlin.math.cos(Math.toRadians(degrees)) * 108 * density).toFloat()
