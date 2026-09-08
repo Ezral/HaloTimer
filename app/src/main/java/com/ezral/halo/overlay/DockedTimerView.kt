@@ -13,6 +13,8 @@ class DockedTimerView(context: Context) : View(context) {
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPath = Path()
+    private val digits = resources.getFont(com.ezral.halo.R.font.poppins_medium)
+    private val labelFont = resources.getFont(com.ezral.halo.R.font.poppins_bold)
     init { setLayerType(LAYER_TYPE_SOFTWARE, null) }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -36,13 +38,17 @@ class DockedTimerView(context: Context) : View(context) {
         paint.color = t.definition.color.toInt(); paint.style = Paint.Style.STROKE; paint.strokeWidth = 2 * d
         val progress = (s.remaining(now).toFloat() / s.stepDurationMs.coerceAtLeast(1)).coerceIn(0f, 1f)
         canvas.drawArc(cx - radius + d, cy - radius + d, cx + radius - d, cy + radius - d, -90f, 360 * progress, false, paint)
-        paint.style = Paint.Style.FILL; paint.color = Color.rgb(30, 33, 43)
-        paint.typeface = Typeface.create("monospace", Typeface.NORMAL); paint.textSize = 18 * d; paint.textAlign = Paint.Align.CENTER
-        val textX = cx + if (t.definition.dock == DockSide.LEFT) 23 * d else -23 * d
+        paint.style = Paint.Style.FILL; paint.color = 0xFF303644.toInt()
+        paint.typeface = digits; paint.textSize = 18 * d; paint.textAlign = Paint.Align.CENTER
+        val textX = cx + if (t.definition.dock == DockSide.LEFT) radius / 2 else -radius / 2
         val parts = formatTime(s.remaining(now)).split(":")
-        canvas.drawText(parts[0], textX, cy - 3 * d, paint)
-        canvas.drawText(parts[1], textX, cy + 19 * d, paint)
-        paint.textSize = 15 * d; paint.typeface = Typeface.create("sans-serif", Typeface.BOLD); paint.textAlign = Paint.Align.LEFT
+        // Center the actual numeral ink as a two-line block inside the visible half-circle.
+        val ink = Rect(); paint.getTextBounds("0123456789", 0, 10, ink)
+        val spacing = ink.height() + 6 * d
+        val middleBaseline = cy - (ink.top + ink.bottom) / 2f
+        canvas.drawText(parts[0], textX, middleBaseline - spacing / 2, paint)
+        canvas.drawText(parts[1], textX, middleBaseline + spacing / 2, paint)
+        paint.textSize = 15 * d; paint.typeface = labelFont; paint.textAlign = Paint.Align.LEFT
         paint.color = t.definition.color.toInt()
         labelPath.reset(); labelPath.addCircle(cx, cy, 59 * d, Path.Direction.CW)
         canvas.save()

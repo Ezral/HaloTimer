@@ -116,6 +116,29 @@ class HaloSmokeTest {
         val dockBounds = android.graphics.Rect()
         overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
         val density = rule.activity.resources.displayMetrics.density
+        fun dockGesture(targetX: Float, targetY: Float, capture: Boolean = false) {
+            val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            val down = SystemClock.uptimeMillis()
+            fun pointer(action: Int, x: Float, y: Float) {
+                val event = android.view.MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+                event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                try { assertTrue(automation.injectInputEvent(event, true)) } finally { event.recycle() }
+            }
+            pointer(android.view.MotionEvent.ACTION_DOWN, 24 * density, dockBounds.centerY().toFloat())
+            SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 200L)
+            if (capture) screenshot("12-dock-blob-menu")
+            pointer(android.view.MotionEvent.ACTION_MOVE, targetX, targetY)
+            pointer(android.view.MotionEvent.ACTION_UP, targetX, targetY)
+        }
+        val menuTop = (dockBounds.centerY() - 136 * density).coerceAtLeast(0f)
+        dockGesture(126 * density, menuTop + 104 * density, true)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED }
+        // Releasing off the targets cancels without expanding or changing playback.
+        dockGesture(185 * density, menuTop + 260 * density)
+        assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
+        assertEquals(DockSide.LEFT, c.state.value.tracks[0].definition.dock)
+        dockGesture(60 * density, menuTop + 40 * density)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
         // Pull the half-circle back into the screen, without touching system back-gesture territory.
         shell("input swipe ${(24 * density).toInt()} ${dockBounds.centerY()} ${(200 * density).toInt()} ${dockBounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.NONE && overlayNode("Pause Timer A") != null }
@@ -234,5 +257,16 @@ class HaloSmokeTest {
         rule.onNodeWithText("Reset").performScrollTo().performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
         checkRealCompletion()
+        shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
+        rule.waitUntil(5_000) { rule.activity.hasWindowFocus() }
+        val c = (rule.activity.application as HaloApplication).coordinator
+        rule.onNodeWithContentDescription("Dismiss all timers on menu entry").performScrollTo().performClick()
+        rule.waitUntil(5_000) { c.prefs.value.dismissAllOnMenu }
+        c.submit(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 300_000)))
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.durationMs == 300_000L }
+        rule.onNodeWithContentDescription("Start timer").performClick()
+        rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() && c.state.value.tracks[0].session != null }
+        shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
+        rule.waitUntil(5_000) { rule.activity.hasWindowFocus() && c.state.value.tracks.all { it.session == null } }
     }
 }

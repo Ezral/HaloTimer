@@ -17,6 +17,8 @@ import com.ezral.halo.runtime.HaloRuntimeService
 import com.ezral.halo.overlay.OverlayVisibility
 import com.ezral.halo.ui.HaloScreen
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
+import androidx.lifecycle.lifecycleScope
 
 class MainActivity : ComponentActivity() {
     private val c get() = (application as HaloApplication).coordinator
@@ -56,8 +58,17 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("selected", selected); super.onSaveInstanceState(outState) }
-    override fun onStart() { super.onStart(); OverlayVisibility.shown(this) }
-    override fun onStop() { OverlayVisibility.hidden(this); super.onStop() }
+    private var menuEntry: Job? = null
+    override fun onStart() {
+        super.onStart()
+        val entering = !OverlayVisibility.menuVisible
+        OverlayVisibility.shown(this)
+        if (entering && !isChangingConfigurations) menuEntry = lifecycleScope.launch {
+            // Read the persisted preference, not the state-flow's initial default on cold start.
+            if (c.preferences.flow.first().dismissAllOnMenu) c.execute(Command.StopAll)
+        }
+    }
+    override fun onStop() { menuEntry?.cancel(); OverlayVisibility.hidden(this); super.onStop() }
     override fun onResume() { super.onResume(); c.scope.launch { c.initialize(); c.alarmScheduler.reconcile(c.state.value) } }
     override fun onPause() { cancelHold(); super.onPause() }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) cancelHold() }

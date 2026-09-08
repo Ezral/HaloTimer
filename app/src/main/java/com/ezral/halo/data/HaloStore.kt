@@ -27,13 +27,15 @@ class HaloStore(context: Context) {
     suspend fun save(snapshot: Snapshot) = db.checkpoints().write(Checkpoint(payload = json.encodeToString(Snapshot.serializer(), snapshot)))
 }
 private val Context.settings by preferencesDataStore("halo_preferences")
-data class Preferences(val theme: String = "System", val reducedMotion: Boolean = false, val volume: Boolean = false)
+data class Preferences(val theme: String = "System", val reducedMotion: Boolean = false, val volume: Boolean = false, val dismissAllOnMenu: Boolean = false)
 class PreferenceStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val motionKey = booleanPreferencesKey("reduced_motion")
+    private val dismissKey = booleanPreferencesKey("dismiss_all_on_menu")
     private val volumeKey = booleanPreferencesKey("local_volume")
-    val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", it[motionKey] ?: false, it[volumeKey] ?: false) }
+    val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", it[motionKey] ?: false, it[volumeKey] ?: false, it[dismissKey] ?: false) }
     suspend fun theme(value: String) { context.settings.edit { it[themeKey] = value } }
     suspend fun motion(value: Boolean) { context.settings.edit { it[motionKey] = value } }
+    suspend fun dismissAllOnMenu(value: Boolean) { context.settings.edit { it[dismissKey] = value } }
     suspend fun volume(value: Boolean) { context.settings.edit { it[volumeKey] = value } }
 }

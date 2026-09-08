@@ -5,6 +5,17 @@ import org.junit.Test
 import kotlin.math.abs
 
 class AlertsTest {
+    @org.junit.Test fun breathingHasSoftTurnsAndLongerExhale() {
+        assertEquals(0f, AlertMotion.breathLevel(0), .00001f)
+        assertEquals(1f, AlertMotion.breathLevel(1920), .00001f)
+        assertEquals(0f, AlertMotion.breathLevel(4800), .00001f)
+        assertTrue(AlertMotion.breathLevel(1919) > .9999f)
+        assertTrue(AlertMotion.breathLevel(1921) > .9999f)
+        assertTrue(AlertMotion.breathLevel(4799) < .0001f)
+        assertEquals(AlertMotion.breathLevel(960), AlertMotion.breathLevel(3360), .00001f)
+        assertEquals(AlertMotion.breathe(0), AlertMotion.breathe(4800))
+    }
+
     private fun event(id: Int, repeat: HapticRepeat = HapticRepeat.ONCE, morse: Boolean = false) =
         AlertEvent("event-$id", id, 0, true, if (morse) HapticStyle.MORSE else HapticStyle.DOUBLE_TAP, "SOS", repeat)
     @Test fun countedRepeatsPreserveEveryMorseCycleAndGap() {

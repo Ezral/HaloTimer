@@ -85,7 +85,12 @@ class EdgeView(context: Context) : View(context) {
             else if (reducedMotion) drawPart(canvas, m, 0f, 1f)
             else when (track.definition.alert) {
                 AlertStyle.BREATHE -> {
-                    paint.alpha = AlertMotion.breathe(elapsed)
+                    val level = AlertMotion.breathLevel(elapsed)
+                    val alpha = AlertMotion.breathe(elapsed)
+                    paint.clearShadowLayer()
+                    if (glow > 0) paint.setShadowLayer(widthDp * (.35f + glow * level), 0f, 0f,
+                        Color.argb(alpha, Color.red(paint.color), Color.green(paint.color), Color.blue(paint.color)))
+                    paint.alpha = alpha
                     drawPart(canvas, m, 0f, 1f)
                 }
                 AlertStyle.ORBIT -> drawPart(canvas, m, AlertMotion.orbit(elapsed), 0.20f)

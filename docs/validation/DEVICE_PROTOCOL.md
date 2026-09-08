@@ -40,3 +40,12 @@ With TalkBack and 200% font scale, edit name, duration, seconds carry/borrow, ch
 ## Release gate
 
 Attach evidence for R01–R24 to STATUS.md. Resolve failures, profile frame pacing/CPU/battery against an idle baseline, verify store declarations and production signing, and review original UI screenshots with the owner. The presence of a debug APK is not release approval.
+
+
+## Alpha 03 dock and alerts regression
+
+- Long-press either dock until four action blobs appear. Slide to each target and release: Play resumes, Pause pauses, Restart starts the first step, Dismiss removes that timer and its haptics. Release between/outside targets to cancel; drag before the hold threshold to move/expand normally.
+- Confirm the stacked Poppins MM/SS ink is centered in the visible half on left and right. Inspect larger display/font settings, long sequence labels and all three simultaneous docks.
+- Compare the compact pill text and icon colors. Check pale line-colored glass on bright/dark backgrounds and with system blur disabled.
+- Confirm Breathe eases through inhale, peak, longer exhale and the cycle seam; observe at least three cycles after actual completion. Other completion modes must wrap continuously even when system transition animations are disabled.
+- With menu-entry dismissal off, opening Halo only hides controls. With it on, opening Halo clears running, paused and completed sessions plus Morse/repeated vibration. Definitions remain available for the next run.

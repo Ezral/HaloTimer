@@ -34,7 +34,7 @@ Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
 - Current-step progress anchored to monotonic deadlines; pause, resume, adjust, reset, hide and rename preserve track independence.
 - Breathe, Orbit, Ping-pong and Double pong; per-track color and glow; reduced motion.
 - Silent notifications; vibration off, double tap, or validated A–Z/0–9 Morse, with a bounded serial haptic queue.
-- System/light/dark themes; original rounded Halo styling and monospace floating digits.
+- System/light/dark themes; rounded Halo styling and bundled Poppins typography.
 - Optional physical volume adjustment **while Halo is focused**: 30s, then 1m after 3s, then 5m after 8s. A hold ends after 15s or when the target changes.
 - Room checkpoints include definitions, immutable run snapshots and event outbox atomically; DataStore preferences. Reboot/user-requested stop interrupts a running session.
 
@@ -72,3 +72,9 @@ The first alpha used an ephemeral CI debug signing key. Android may require a on
 Completion lighting continues until Dismiss, with smooth wrapping and pong turns. Vibration (including Morse) supports Once, 3×, 5×, Until dismiss, or a custom cycle count/duration. Parallel timer vibrations take turns; previews play once. Finite repeats do not resume after process loss.
 
 Opening Halo hides floating controls temporarily. Their backgrounds follow the chosen line color, and the dock has one larger bold rotating label with the current sequence step and timer name. The palette adds bright red, strong blue and purple; a custom hex dialog accepts any opaque RGB color. Header actions use icons, Morse editing opens a Save/Cancel popup, and appearance options live at the bottom.
+
+The floating pill is compact, with matching dark text/icons on light color-tinted glass. The dock centers MM/SS inside its visible half. Hold the dock, slide onto Play, Pause, Restart or Dismiss, then release; releasing elsewhere cancels. Restart returns to the first step and runs immediately. Dismiss stops that timer. Tap or pull inward to reveal the standard controls.
+
+The optional **Dismiss all timers on menu entry** setting defaults off. With it on, returning to Halo clears every running/paused/completed session and its alerts; timer definitions remain saved. Breathe uses a 4.8-second cycle with a gentle inhale and longer exhale, easing both line intensity and glow.
+
+Poppins is bundled under the SIL Open Font License; see `app/src/main/assets/licenses/Poppins-OFL.txt`. `.github/scripts/fetch-fonts.py` verifies the upstream font blobs against pinned hashes.

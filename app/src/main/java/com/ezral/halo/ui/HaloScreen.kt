@@ -91,7 +91,7 @@ fun HaloScreen(
     }
     val scheme = if (dark) darkColorScheme(primary = Color(0xFFB4A8FF), background = Color(0xFF101116), surface = Color(0xFF1B1C24), surfaceVariant = Color(0xFF272833))
     else lightColorScheme(primary = Color(0xFF6250C4), background = Color(0xFFF3F3F8), surface = Color.White, surfaceVariant = Color(0xFFEAE8F2))
-    MaterialTheme(colorScheme = scheme, shapes = Shapes(medium = RoundedCornerShape(24.dp), large = RoundedCornerShape(28.dp))) {
+    MaterialTheme(colorScheme = scheme, typography = HaloTypography, shapes = Shapes(medium = RoundedCornerShape(24.dp), large = RoundedCornerShape(28.dp))) {
         Surface(Modifier.fillMaxSize(), color = scheme.background) {
             val track = state.tracks[selected]
             val d = track.definition
@@ -141,7 +141,7 @@ fun HaloScreen(
                                 Text(t.definition.name, maxLines = 2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Text(if (t.definition.active) "Active" else "Inactive", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-                            if (t.session != null) Text(formatTime(t.session!!.remaining(now)), fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                            if (t.session != null) Text(formatTime(t.session!!.remaining(now)), fontFamily = Poppins, fontSize = 12.sp)
                         }
                     }
                 }
@@ -227,7 +227,7 @@ fun HaloScreen(
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(d.morse, fontWeight = FontWeight.SemiBold)
-                                Text(Morse.display(d.morse), fontFamily = FontFamily.Monospace, color = accent)
+                                Text(Morse.display(d.morse), fontFamily = Poppins, color = accent)
                             }
                             TextButton(onClick = { morseDraft = d.morse; editingMorse = true }) { Text("Edit") }
                         }
@@ -275,6 +275,7 @@ fun HaloScreen(
                     Text("Controls", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Volume buttons in Halo", prefs.volume) { c.scope.launch { c.preferences.volume(it) } }
                     if (prefs.volume) Text("${d.name} · 30s → 1m → 5m while held", color = scheme.onSurfaceVariant, fontSize = 13.sp)
+                    SettingToggle("Dismiss all timers on menu entry", prefs.dismissAllOnMenu) { c.scope.launch { c.preferences.dismissAllOnMenu(it) } }
                     SettingToggle("Reduce motion", prefs.reducedMotion) { c.scope.launch { c.preferences.motion(it) } }
                     TextButton(onClick = { c.submit(Command.ShowAll); if (state.tracks.any { it.session?.status == Status.RUNNING }) onLaunch(-2) }) { Text("Show all floating controls") }
                 }
@@ -300,7 +301,7 @@ fun HaloScreen(
             if (editingMorse) AlertDialog(onDismissRequest = { editingMorse = false }, title = { Text("Morse vibration text") }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(morseDraft, { if (it.length <= 24) morseDraft = it }, singleLine = true, label = { Text("Text") }, modifier = Modifier.semantics { contentDescription = "Morse input" })
-                    Text(Morse.display(morseDraft), fontFamily = FontFamily.Monospace, color = accent)
+                    Text(Morse.display(morseDraft), fontFamily = Poppins, color = accent)
                     Morse.validate(morseDraft)?.let { Text(it, color = scheme.error, fontSize = 12.sp) }
                 }
             }, confirmButton = { TextButton(onClick = { c.submit(Command.Edit(d.copy(morse = Morse.normalize(morseDraft)))); editingMorse = false }, enabled = Morse.validate(morseDraft) == null) { Text("Save") } }, dismissButton = { TextButton(onClick = { editingMorse = false }) { Text("Cancel") } })
