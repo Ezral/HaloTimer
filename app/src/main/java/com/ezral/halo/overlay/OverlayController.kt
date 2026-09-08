@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.InsetDrawable
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
@@ -57,12 +55,12 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 val blur = Build.VERSION.SDK_INT >= 31 && wm.isCrossWindowBlurEnabled
                 if (control.blur != blur) {
                     control.blur = blur
-                    val glass = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(
+                    val glass = GlassBackground(intArrayOf(
                         if (blur) 0xB8FFFFFF.toInt() else 0xECFFFFFF.toInt(),
                         if (blur) 0x66EDF3FA else 0xCCDDE6F0.toInt(),
-                    )).apply { cornerRadius = dp(if (control.dock == DockSide.NONE) 28 else 48).toFloat() }
+                    ), dp(if (control.dock == DockSide.NONE) 28 else 48).toFloat(), if (control.dock == DockSide.NONE) 0 else dp(24))
                     control.dialog.window!!.apply {
-                        setBackgroundDrawable(if (control.dock == DockSide.NONE) glass else InsetDrawable(glass, dp(24)))
+                        setBackgroundDrawable(glass)
                         decorView.setPadding(0, 0, 0, 0)
                         if (Build.VERSION.SDK_INT >= 31) setBackgroundBlurRadius(if (blur) dp(24).coerceAtMost(100) else 0)
                     }

@@ -88,7 +88,11 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.LEFT }
         rule.waitUntil(5_000) { overlayNode("Tap or drag inward to expand") != null }
         screenshot("07-left-docked-glass")
-        overlayNode("Tap or drag inward to expand")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        val dockBounds = android.graphics.Rect()
+        overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
+        val density = rule.activity.resources.displayMetrics.density
+        // Pull the half-circle back into the screen, without touching system back-gesture territory.
+        shell("input swipe ${(24 * density).toInt()} ${dockBounds.centerY()} ${(200 * density).toInt()} ${dockBounds.centerY()} 600")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.dock == DockSide.NONE && overlayNode("Pause Timer A") != null }
         overlayNode("Pause Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED && overlayNode("Play Timer A") != null }

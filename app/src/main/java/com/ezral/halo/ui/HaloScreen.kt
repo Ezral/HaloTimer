@@ -74,6 +74,15 @@ fun HaloScreen(
     }
     LaunchedEffect(selected, selectedStep) { onSelect(selected, selectedStep) }
     val dark = prefs.theme == "Dark" || (prefs.theme == "System" && isSystemInDarkTheme())
+    LaunchedEffect(dark) {
+        (context as? android.app.Activity)?.window?.let { window ->
+            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+            if (Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
+        }
+    }
     val scheme = if (dark) darkColorScheme(primary = Color(0xFFB4A8FF), background = Color(0xFF101116), surface = Color(0xFF1B1C24), surfaceVariant = Color(0xFF272833))
     else lightColorScheme(primary = Color(0xFF6250C4), background = Color(0xFFF3F3F8), surface = Color.White, surfaceVariant = Color(0xFFEAE8F2))
     MaterialTheme(colorScheme = scheme, shapes = Shapes(medium = RoundedCornerShape(24.dp), large = RoundedCornerShape(28.dp))) {
