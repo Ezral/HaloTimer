@@ -195,6 +195,10 @@ class HaloSmokeTest {
     @Test fun nativeEditorThemesAndRuntime() {
         if (android.os.Build.VERSION.SDK_INT >= 33) InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission("com.ezral.halo.debug", android.Manifest.permission.POST_NOTIFICATIONS)
         rule.waitUntil(10_000) { (rule.activity.application as HaloApplication).coordinator.ready.value }
+        val launcherError = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
+            ?.findAccessibilityNodeInfosByText("Quickstep isn't responding")?.isNotEmpty() == true
+        if (launcherError) shell("am force-stop com.android.launcher3")
+        rule.waitUntil(10_000) { rule.activity.hasWindowFocus() }
         shell("appops set com.ezral.halo.debug SYSTEM_ALERT_WINDOW allow")
         rule.waitUntil(5_000) { Settings.canDrawOverlays(rule.activity) }
         // A second-field adjustment must operate on the entire duration, including borrow.
