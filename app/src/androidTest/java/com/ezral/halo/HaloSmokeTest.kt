@@ -133,6 +133,8 @@ class HaloSmokeTest {
         val c = (rule.activity.application as HaloApplication).coordinator
         rule.onNodeWithText("Morse", substring = false).performScrollTo().performClick()
         rule.onNodeWithText("Edit", substring = false).performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Morse input").performTextReplacement("!")
+        rule.onNodeWithText("Save").assertIsNotEnabled()
         rule.onNodeWithContentDescription("Morse input").performTextReplacement("sos")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.morse == "SOS" }
@@ -143,6 +145,8 @@ class HaloSmokeTest {
         rule.onNodeWithContentDescription("Vibration duration").performScrollTo().performTextReplacement("2")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.repeatDurationMs == 2_000L }
         rule.onNodeWithText("Custom line color").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Custom color input").performTextReplacement("-FFFFF")
+        rule.onNodeWithText("Save").assertIsNotEnabled()
         rule.onNodeWithContentDescription("Custom color input").performTextReplacement("#FF2D2D")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.color == 0xFFFF2D2DL }

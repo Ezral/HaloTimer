@@ -402,4 +402,4 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
     }
 }
 
-private fun parseLineColor(text: String): Long? = text.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)?.let { it or 0xFF000000L }
+private fun parseLineColor(text: String): Long? = text.removePrefix("#").takeIf { it.length == 6 && it.all { c -> c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F' } }?.toLongOrNull(16)?.let { it or 0xFF000000L }
