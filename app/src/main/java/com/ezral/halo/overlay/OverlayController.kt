@@ -45,7 +45,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         if (tracks.isEmpty()) { removeAll(); return }
         try {
             if (edge == null) { edge = EdgeView(context); wm.addView(edge, EdgeWindowLayout.create(context)) }
-            val reduce = preferences.reducedMotion || !android.animation.ValueAnimator.areAnimatorsEnabled()
+            // Canvas alerts follow Halo's explicit setting; system transition scales are independent.
+            val reduce = preferences.reducedMotion
             edge?.apply { this.tracks = tracks; reducedMotion = reduce; invalidate() }
             val visible = if (OverlayVisibility.menuVisible) emptyMap() else tracks.filterNot { it.definition.hidden }.associateBy { it.definition.id }
             controls.keys.toList().filter { it !in visible || controls[it]?.dock != visible[it]?.definition?.dock }.forEach { controls.remove(it)?.dialog?.dismiss() }

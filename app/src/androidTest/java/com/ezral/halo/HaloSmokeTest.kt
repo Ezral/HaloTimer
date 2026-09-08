@@ -152,9 +152,7 @@ class HaloSmokeTest {
 
     private fun checkRealCompletion() {
         val c = (rule.activity.application as HaloApplication).coordinator
-        // The CI emulator disables window animations by default; enable animation for this regression.
-        shell("settings put global animator_duration_scale 1")
-        rule.waitUntil(5_000) { android.animation.ValueAnimator.areAnimatorsEnabled() }
+        // CI disables system transition animations; Halo canvas alerts must still animate.
         c.submit(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 1_000, alert = AlertStyle.ORBIT, haptic = HapticStyle.OFF)))
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.durationMs == 1_000L }
         rule.onNodeWithContentDescription("Start timer").performClick()
