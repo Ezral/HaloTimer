@@ -196,6 +196,9 @@ class HaloSmokeTest {
             }
             pointer(android.view.MotionEvent.ACTION_DOWN, 24 * density, dockBounds.centerY().toFloat())
             SystemClock.sleep(android.view.ViewConfiguration.getLongPressTimeout() + 600L)
+            rule.waitUntil(5_000) {
+                automation.windows.any { it.title?.toString() == "Halo dock actions" }
+            }
             if (capture) screenshot("12-dock-blob-menu")
             pointer(android.view.MotionEvent.ACTION_MOVE, targetX, targetY)
             pointer(android.view.MotionEvent.ACTION_UP, targetX, targetY)
