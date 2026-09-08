@@ -171,6 +171,8 @@ class HaloSmokeTest {
             var changed = 0
             for (y in 0 until before.height) for (x in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
             for (x in 0 until before.width) for (y in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
+            for (y in 0 until before.height) for (x in before.width - border until before.width) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
+            for (x in 0 until before.width) for (y in before.height - border until before.height) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
             assertTrue("Actual completion overlay must move", changed > 0)
         } finally { before.recycle(); after.recycle() }
         screenshot("11-actual-completion")
