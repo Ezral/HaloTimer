@@ -73,6 +73,9 @@ class HaloSmokeTest {
         val directory = File(rule.activity.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
         File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
+        // The test runner may uninstall the app before Gradle returns. Preserve QA output first.
+        shell("mkdir -p /sdcard/Download/halo-qa")
+        shell("cp '${File(directory, "$name.png").absolutePath}' '/sdcard/Download/halo-qa/$name.png'")
     }
 
     @Test fun nativeEditorThemesAndRuntime() {

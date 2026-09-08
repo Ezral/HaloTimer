@@ -3,5 +3,5 @@
 set -u
 ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace
 halo_test_result=$?
-adb pull /sdcard/Android/data/com.ezral.halo.debug/files/screenshots native-screenshots || true
+adb pull /sdcard/Download/halo-qa native-screenshots || true
 exit "$halo_test_result"
