@@ -49,12 +49,15 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         actionMenuX = if (dock == DockSide.LEFT) 0 else screen.widthPixels - dp(168)
         actionMenuY = (centerY - dp(144)).coerceIn(0, (screen.heightPixels - dp(288)).coerceAtLeast(0))
         val params = WindowManager.LayoutParams(dp(168), dp(288), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, android.graphics.PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.LEFT; x = actionMenuX; y = actionMenuY; alpha = 1f
             title = "Halo dock actions"
             if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
         }
+        // These are bounded interactive controls, not a pass-through decorative overlay.
+        // Keep the window touchable so Android does not cap its surface opacity.
+        menu.setOnTouchListener { _, _ -> true }
         try { wm.addView(menu, params); actionMenu = menu; actionMenuTrack = id }
         catch (_: WindowManager.BadTokenException) { closeActionMenu() }
         catch (_: SecurityException) { closeActionMenu() }
@@ -131,12 +134,13 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             val view = DockMorphView(context, local(start), local(end), track) { finishMorph(id) }
             val params = WindowManager.LayoutParams(kotlin.math.ceil(area.width()).toInt(), kotlin.math.ceil(area.height()).toInt(),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT).apply {
                 gravity = Gravity.TOP or Gravity.LEFT; x = left; y = top; alpha = 1f; title = "Halo surface transition"
                 if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
             }
+            view.setOnTouchListener { _, _ -> true } // Only the compact morph bounds consume new touches.
             try { wm.addView(view, params); morphs[id] = Morph(view, next) }
             catch (_: WindowManager.BadTokenException) { reveal(next) }
             catch (_: SecurityException) { reveal(next) }
@@ -347,7 +351,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                             val inward = if (dock == DockSide.LEFT) event.rawX - downX else downX - event.rawX
                             if (inward > dp(32)) expand(event.rawX / screen.widthPixels)
                             else {
-                                val current=c.state.value.tracks[id]
+                                val saved=c.state.value.tracks[id]
+                                val current=saved.copy(definition=saved.definition.copy(y=p.y.toFloat()/maxY.coerceAtLeast(1)))
                                 controls[id]?.let { old -> controls[id]=replaceControl(id,old,current,c.prefs.value.reducedMotion) }
                                 moveControl(Command.Move(id,current.definition.x,p.y.toFloat()/maxY.coerceAtLeast(1),dock))
                             }

@@ -161,6 +161,15 @@ class HaloSmokeTest {
         shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
     }
 
+    private fun restartTimerAFromMenu() {
+        // Stopping the last timer legitimately stops its foreground service. Restart through
+        // the app's real launch action, not a raw engine command that bypasses service startup.
+        shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
+        rule.waitUntil(5_000) { activity.hasWindowFocus() }
+        tapNative("Start timer")
+        rule.waitUntil(5_000) { !activity.hasWindowFocus() }
+    }
+
     private fun checkGlassDockAndPlayback() {
         val c = (activity.application as HaloApplication).coordinator
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
@@ -204,7 +213,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
         dockGesture(arcX(55.0), arcY(55.0))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session == null && overlayNode("Tap or drag inward to expand")==null }
-        c.submit(Command.Start(setOf(0)))
+        restartTimerAFromMenu()
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING && overlayNode("Tap or drag inward to expand")!=null }
         SystemClock.sleep(300)
         // Pull the half-circle back into the screen, without touching system back-gesture territory.
@@ -224,7 +233,7 @@ class HaloSmokeTest {
         overlayNode("Stop Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session==null && overlayNode("Stop Timer A")==null }
         assertEquals("Stop leaves the parallel timer running",Status.RUNNING,c.state.value.tracks[1].session?.status)
-        c.submit(Command.Reset(1)); c.submit(Command.Start(setOf(0)))
+        c.submit(Command.Reset(1)); restartTimerAFromMenu()
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING }
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock")!=null }
         overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
