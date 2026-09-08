@@ -132,6 +132,7 @@ class HaloSmokeTest {
     private fun checkSettingsEditors() {
         val c = (rule.activity.application as HaloApplication).coordinator
         rule.onNodeWithText("Morse", substring = false).performScrollTo().performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.haptic == HapticStyle.MORSE }
         rule.onNodeWithText("Edit", substring = false).performScrollTo().performClick()
         rule.onNodeWithContentDescription("Morse input").performTextReplacement("!")
         rule.onNodeWithText("Save").assertIsNotEnabled()
@@ -141,7 +142,9 @@ class HaloSmokeTest {
         rule.onNodeWithText(Morse.display("SOS")).assertExists()
         screenshot("09-morse-saved")
         rule.onNodeWithText("Custom", substring = false).performScrollTo().performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.hapticRepeat == HapticRepeat.CUSTOM }
         rule.onNodeWithText("Duration", substring = false).performScrollTo().performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.hapticRepeat == HapticRepeat.TIMED }
         rule.onNodeWithContentDescription("Vibration duration").performScrollTo().performTextReplacement("2")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.repeatDurationMs == 2_000L }
         rule.onNodeWithText("Custom line color").performScrollTo().performClick()
@@ -152,6 +155,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.color == 0xFFFF2D2DL }
         screenshot("10-custom-color")
         rule.onNodeWithText("Off", substring = false).performScrollTo().performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.haptic == HapticStyle.OFF }
     }
 
     private fun checkRealCompletion() {
