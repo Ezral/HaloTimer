@@ -18,6 +18,7 @@ import com.ezral.halo.core.*
 import com.ezral.halo.data.Preferences
 import com.ezral.halo.runtime.TimerCoordinator
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 class OverlayController(private val context: Context, private val c: TimerCoordinator) {
     private val wm = context.getSystemService(WindowManager::class.java)
@@ -88,7 +89,9 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("track", id))
     private fun toggle(id: Int) {
         val status = c.state.value.tracks[id].session?.status
-        c.submit(if (status == Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
+        if (status == Status.COMPLETED || status == Status.INTERRUPTED) c.scope.launch {
+            c.execute(Command.Rewind(id)); c.execute(Command.Start(setOf(id)))
+        } else c.submit(if (status == Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
     }
     private fun createControl(track: Track): Control {
         val id = track.definition.id; val dock = track.definition.dock
@@ -123,7 +126,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 root.addView(button, LinearLayout.LayoutParams(dp(48), dp(48))); return button
             }
             play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
-            button("↺", "Reset ${track.definition.name}") { c.submit(Command.Reset(id)) }
+            button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
             button("⋮", "Open Halo settings") { settings(id) }
             button("×", "Hide ${track.definition.name} control") { c.submit(Command.Hide(id, true)) }
             info.setOnClickListener { toggle(id) }
@@ -143,7 +146,10 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         }
         window.attributes = p
         fun expand(x: Float = if (dock == DockSide.LEFT) 0.05f else 0.95f) = c.submit(Command.Move(id, x.coerceIn(0f, 1f), p.y.toFloat() / maxY.coerceAtLeast(1), DockSide.NONE))
-        if (dock != DockSide.NONE) root.setOnClickListener { expand() }
+        if (dock != DockSide.NONE) {
+            root.setOnClickListener { expand() }
+            root.setOnLongClickListener { settings(id); true }
+        }
         val handle = info ?: root
         var downX = 0f; var downY = 0f; var initialX = 0; var initialY = 0; var dragged = false; var downAt = 0L
         handle.setOnTouchListener { v, event ->
@@ -168,7 +174,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                             val side = when { p.x <= dp(16) -> DockSide.LEFT; p.x >= maxX - dp(16) -> DockSide.RIGHT; else -> DockSide.NONE }
                             c.submit(Command.Move(id, p.x.toFloat() / maxX.coerceAtLeast(1), p.y.toFloat() / maxY.coerceAtLeast(1), side))
                         }
-                    } else if (dock != DockSide.NONE && event.eventTime - downAt >= ViewConfiguration.getLongPressTimeout()) settings(id)
+                    } else if (dock != DockSide.NONE && event.eventTime - downAt >= ViewConfiguration.getLongPressTimeout()) v.performLongClick()
                     else v.performClick()
                     true
                 }

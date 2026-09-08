@@ -23,6 +23,17 @@ class TimerEngineTest {
         assertEquals(s.tracks[0].session, restored.tracks[0].session)
         assertEquals(DockSide.NONE, Json.decodeFromString<Definition>("{\"id\":0}").dock)
     }
+    @Test fun floatingResetRewindsSequenceAndWaitsForPlay() {
+        val s = run(sequence(), 0)
+        val reset = engine.apply(s, Command.Rewind(0), 45_000).snapshot
+        val a = reset.tracks[0].session!!
+        assertEquals(Status.PAUSED, a.status)
+        assertEquals(0, a.index)
+        assertEquals(30_000L, a.remaining(1_000_000))
+        assertEquals(engine.reconcile(s, 45_000).tracks.drop(1), reset.tracks.drop(1))
+        val resumed = engine.apply(reset, Command.Start(setOf(0)), 90_000).snapshot.tracks[0].session!!
+        assertEquals(120_000L, resumed.deadlineMs)
+    }
     @Test fun launchAllUsesOneTimestamp() {
         val s = run(); assertEquals(listOf(61_000L, 61_000L, 61_000L), s.tracks.map { it.session!!.deadlineMs })
         assertEquals(3, s.tracks.map { it.session!!.id }.distinct().size)

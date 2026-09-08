@@ -12,7 +12,7 @@ Halo has three independent timer tracks, named sequences, colored edge progress,
 2. Select the `app` debug variant and run it on Android 8.0 or newer.
 3. Enable **Display over other apps** in Halo's Permissions card for the edge overlay. Notification and precise-alarm access are separately optional.
 4. Set a duration, or choose Sequence and add steps. Start a timer: Halo returns to the previous app or home, with the overlay running. Preview keeps settings open.
-5. Tap the floating time to pause/resume, drag it to move, use `⋮` for settings, or `×` to hide it. Restore controls from Halo or the ongoing notification.
+5. Use the floating pause/play and reset controls, `⋮` for settings, or `×` to hide it. Drag to either edge to dock as a half-circle with stacked minutes/seconds and a rotating label; tap or drag inward to expand. Restore controls from Halo or the ongoing notification.
 
 Alternatively, download `halo-debug-apk` from a successful [Android CI run](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml). CI artifacts require a GitHub login. This APK uses debug signing and the separate package `com.ezral.halo.debug`.
 
@@ -35,7 +35,7 @@ Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
 - Breathe, Orbit, Ping-pong and Double pong; per-track color and glow; reduced motion.
 - Silent notifications; vibration off, double tap, or validated A–Z/0–9 Morse, with a bounded serial haptic queue.
 - System/light/dark themes; original rounded Halo styling and monospace floating digits.
-- Optional physical volume adjustment **while Halo is focused**: 30s, then 1m after 3s, then 5m after 8s. A hold ends after 15s or when the target changes. Floating ± controls work across apps.
+- Optional physical volume adjustment **while Halo is focused**: 30s, then 1m after 3s, then 5m after 8s. A hold ends after 15s or when the target changes.
 - Room checkpoints include definitions, immutable run snapshots and event outbox atomically; DataStore preferences. Reboot/user-requested stop interrupts a running session.
 
 ## Boundaries of this alpha
@@ -44,7 +44,7 @@ Global volume-key interception is deliberately not packaged: ordinary overlays c
 
 Exact-alarm access does not guarantee every short sequence vibration during deep idle. A late callback reconciles the correct logical step without extending the sequence. Normal screens may support overlays; protected screens and system UI may hide or cover them. No permanent wake lock or security-setting workaround is used.
 
-Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and release performance have not yet been certified. Floating controls use a translucent tint, not screen capture or guaranteed cross-app blur.
+Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and release performance have not yet been certified. Floating controls always use light glass, including in dark mode. Android 12+ background blur is used when available; unsupported devices or power-saving states use a stronger translucent tint. No screen capture is used.
 
 ## Structure
 
@@ -59,6 +59,8 @@ Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and 
 The provisional production application ID is `com.ezral.halo`; confirm ownership before signing a production build. Release signing is intentionally not configured. Do not distribute a debug key as a production identity.
 
 ## Alpha 02 — phone feedback
+
+Start timer, Start all and Stop all live in a persistent top-right header.
 
 The decorative halo now uses full display coordinates, including the status and navigation bar regions, with a 2dp gap between 4dp tracks. On Android 12+, reported physical corner radii shape the border. Starting/resuming sends Halo to the background; preview stays in settings. System UI retains its normal z-order: opaque system surfaces can still cover a normal application overlay.
 

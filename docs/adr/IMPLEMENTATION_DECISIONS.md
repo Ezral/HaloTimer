@@ -80,3 +80,5 @@ Floating controls stay light regardless of editor theme. Small non-modal overlay
 Dragging a pill to either side persists a DockSide with normalized position. A 144 dp circle window extends halfway off-screen; its 96 dp glass circle contains stacked minutes/seconds in the visible half, with a rotating name around its rim. Tap or drag inward to expand; long press opens settings. Reduced motion stops label rotation. Docking does not change timer deadlines, and older stored definitions default to undocked.
 
 Reference: https://source.android.com/docs/core/display/window-blurs
+
+Floating reset rewinds the run to its first step and waits for Play, keeping the control visible. Paused runs retain the foreground service and its stop notification so playback remains available over other apps; idle ticks slow to 1 Hz. Editor Reset continues to clear the run for structural editing.

@@ -9,7 +9,7 @@ Date: 2026-09-08. Initial implementation against the product plan. This report d
 | R09–R12: lines, glass, hide/restore | Shared edge surface + bounded draggable controls + app/notification restoration | Device touch/geometry gate pending |
 | R13: four visual modes | Native path renderer | Native visual QA pending |
 | R14–R16: silent alerts, Morse, contention | Silent channels, encoder and bounded queue | 5 Morse tests passed; queue/hardware delivery gate pending |
-| R17–R18: volume controls | App-local keys; fixed-target repeat/cancel; floating ± taps | Threshold tests added; physical-key checks pending; global capture not shipped |
+| R17–R18: volume controls | App-local keys; fixed-target repeat/cancel; floating playback controls | Threshold tests added; physical-key checks pending; global capture not shipped |
 | R19: themes | System/light/dark with DataStore persistence | Native screenshot/contrast review pending |
 | R20: process recovery | Durable Room checkpoint and boot/user-stop policy | Serialization and engine recovery tests added; Room/lifecycle device checks pending |
 | R21–R23: sleep, permissions, stop | Alarm fallback, runtime lifecycle, cancellation | Hardware/OS matrix pending; no deep-idle precision guarantee |
@@ -26,7 +26,7 @@ Date: 2026-09-08. Initial implementation against the product plan. This report d
 1. Complete the physical-device protocol and resolve touch, keyboard/corner geometry, OEM idle behavior and accessibility findings.
 2. Add Android database recreation/migration and fault-injection tests, validate malformed restored payloads; generated Room v1 schema is committed.
 3. Decide and validate global volume capture separately; no accessibility service is currently requested.
-4. Measure rendering/CPU/battery performance; fixed corner radius and tinted glass are provisional native defaults.
+4. Measure rendering/CPU/battery performance; physical corner geometry, native background blur and its tint fallback need OEM validation.
 5. Verify notification-only long haptic delivery when an alarm wakes a reclaimed process. No unconditional foreground-service restart is used.
 6. Add user-facing export of timing diagnostics without private timer text, native screenshot regression coverage, and release localization.
 7. Confirm production package identity, signing, current target requirements and distribution declarations. No production signing or store deployment was performed.
@@ -36,3 +36,6 @@ Date: 2026-09-08. Initial implementation against the product plan. This report d
 The owner tested the first debug APK on their phone and reported that the halo and other features worked well. Two display revisions were requested: use the real display perimeter, including system-bar regions, and add gaps between lanes. A third request makes Start return to the previous app/home. Alpha 02 implements these; see ADR-009. This is owner feedback, not a substitute for the complete physical-device matrix.
 
 Alpha 01 had 27 passing JVM tests, a passing Android lint/debug build, and a passing Android 15 emulator smoke test (run 34208242394). Alpha 02 adds attached-window bounds, rendered lane-gap, touch-through and background-launch checks to the emulator test.
+
+
+The full-display/gap/background-launch regression passed on the Android 15 emulator in run 34210599896, including the persistent header. The subsequent glass/docking change adds a persisted-dock isolation/serialization JVM test and native drag-to-dock, expand, pause and resume checks. These latest checks remain pending until their CI run completes. Screenshot collection is being corrected independently of test assertions.

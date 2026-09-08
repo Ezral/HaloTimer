@@ -57,9 +57,9 @@ class HaloRuntimeService : Service() {
                         }
                         lastNotice = now
                     }
-                    val work = state.tracks.any { it.session?.let { s -> s.status == Status.RUNNING || s.visualUntilMs > now } == true }
+                    val work = state.tracks.any { it.session?.let { s -> s.status == Status.RUNNING || s.status == Status.PAUSED || s.visualUntilMs > now } == true }
                     if (!work && !overlay.previewing()) { stopSelf(); break }
-                    delay(if (screenOn) 200 else 1_000)
+                    delay(if (screenOn && state.tracks.any { it.session?.status == Status.RUNNING }) 200 else 1_000)
                 }
             }
         }

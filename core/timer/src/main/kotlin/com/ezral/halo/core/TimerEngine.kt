@@ -77,6 +77,7 @@ sealed interface Command {
     data class Start(val ids: Set<Int>) : Command
     data class Pause(val id: Int) : Command
     data class Reset(val id: Int) : Command
+    data class Rewind(val id: Int) : Command
     data class Activate(val id: Int, val active: Boolean) : Command
     data class Edit(val definition: Definition) : Command
     data class Adjust(val target: AdjustmentTarget, val deltaMs: Long) : Command
@@ -136,6 +137,15 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 else t.copy(session = Session(newId(), d.runSteps().map { it.copy() }, deadlineMs = now + d.runSteps().first().durationMs))
             } }
             is Command.Pause -> change(command.id, ::pause)
+            is Command.Rewind -> {
+                change(command.id) { t ->
+                    val steps = t.session?.steps ?: t.definition.runSteps()
+                    t.copy(session = Session(newId(), steps, status = Status.PAUSED,
+                        deadlineMs = now + steps.first().durationMs, remainingMs = steps.first().durationMs,
+                        stepDurationMs = steps.first().durationMs))
+                }
+                clear(command.id)
+            }
             is Command.Reset -> { change(command.id) { it.copy(session = null) }; clear(command.id) }
             is Command.Activate -> change(command.id) {
                 (if (command.active) it else pause(it)).let { t -> t.copy(definition = t.definition.copy(active = command.active)) }

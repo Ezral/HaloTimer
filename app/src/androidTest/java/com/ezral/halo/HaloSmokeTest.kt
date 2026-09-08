@@ -18,7 +18,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class HaloSmokeTest {
@@ -94,20 +93,18 @@ class HaloSmokeTest {
         overlayNode("Pause Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED && overlayNode("Play Timer A") != null }
         screenshot("08-paused-glass")
+        overlayNode("Reset Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session?.remainingMs == 300_000L }
+        assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
         overlayNode("Play Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
     }
 
     private fun screenshot(name: String) {
         rule.waitForIdle()
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap = instrumentation.uiAutomation.takeScreenshot()
-        val directory = File(rule.activity.getExternalFilesDir(null), "screenshots").apply { mkdirs() }
-        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-        // The test runner may uninstall the app before Gradle returns. Preserve QA output first.
+        // Capture as the shell directly into shared emulator output, outside app uninstall cleanup.
         shell("mkdir -p /sdcard/Download/halo-qa")
-        shell("cp '${File(directory, "$name.png").absolutePath}' '/sdcard/Download/halo-qa/$name.png'")
+        shell("screencap -p /sdcard/Download/halo-qa/$name.png")
     }
 
     @Test fun nativeEditorThemesAndRuntime() {
