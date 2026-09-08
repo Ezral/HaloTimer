@@ -38,11 +38,15 @@ class HaloNotifications(private val context: Context) {
             .addAction(0, "Stop all", action("stop"))
             .build()
     }
+    private fun dismiss(id: Int) = PendingIntent.getService(context, 200 + id,
+        Intent(context, HaloRuntimeService::class.java).setAction("dismiss").putExtra("track", id),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     fun completed(track: Track) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         manager.notify(100 + track.definition.id, NotificationCompat.Builder(context, "completed").setSmallIcon(R.drawable.ic_halo)
             .setContentTitle("${track.definition.name} finished").setContentText("Open Halo to reset or start again")
             .setContentIntent(open()).setAutoCancel(true).setSilent(true)
+            .addAction(0, "Dismiss", dismiss(track.definition.id))
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(generic()).build())
     }
     fun cancelCompletion(id: Int) = manager.cancel(100 + id)

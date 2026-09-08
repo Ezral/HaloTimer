@@ -11,6 +11,7 @@ const val MAX_MS = 5_999_000L
 @Serializable enum class AlertStyle { BREATHE, ORBIT, PING_PONG, DOUBLE_PONG }
 @Serializable enum class DockSide { NONE, LEFT, RIGHT }
 @Serializable enum class HapticStyle { OFF, DOUBLE_TAP, MORSE }
+@Serializable enum class HapticRepeat { ONCE, THREE, FIVE, UNTIL_DISMISS, CUSTOM, TIMED }
 @Serializable data class Step(val name: String = "Timer", val durationMs: Long = 300_000L)
 @Serializable data class Definition(
     val id: Int,
@@ -23,6 +24,9 @@ const val MAX_MS = 5_999_000L
     val alert: AlertStyle = AlertStyle.ORBIT,
     val haptic: HapticStyle = HapticStyle.DOUBLE_TAP,
     val morse: String = "TIME",
+    val hapticRepeat: HapticRepeat = HapticRepeat.ONCE,
+    val customRepeatCount: Int = 2,
+    val repeatDurationMs: Long = 30_000,
     val glow: Float = 0.5f,
     val hidden: Boolean = false,
     val dock: DockSide = DockSide.NONE,
@@ -35,6 +39,8 @@ const val MAX_MS = 5_999_000L
         durationMs !in MIN_MS..MAX_MS -> "Duration must be 00:01–99:59"
         steps.size !in 1..50 -> "Use 1–50 steps"
         steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..MAX_MS } -> "Check step names and durations"
+        hapticRepeat == HapticRepeat.CUSTOM && customRepeatCount !in 1..99 -> "Use 1–99 vibration repeats"
+        hapticRepeat == HapticRepeat.TIMED && repeatDurationMs !in 1_000..3_600_000 -> "Use a vibration duration of 1–3600 seconds"
         haptic == HapticStyle.MORSE -> Morse.validate(morse)
         else -> null
     }
@@ -49,6 +55,7 @@ const val MAX_MS = 5_999_000L
     val stepDurationMs: Long = steps.first().durationMs,
     val revision: Long = 0,
     val visualUntilMs: Long = 0,
+    val alertStartedAtMs: Long = 0,
 ) {
     fun remaining(now: Long): Long = when (status) {
         Status.RUNNING -> (deadlineMs - now).coerceAtLeast(0)
@@ -65,6 +72,9 @@ const val MAX_MS = 5_999_000L
     val final: Boolean,
     val haptic: HapticStyle,
     val text: String,
+    val repeat: HapticRepeat = HapticRepeat.ONCE,
+    val repeatCount: Int = 1,
+    val repeatDurationMs: Long = 30_000,
 )
 @Serializable data class Snapshot(
     val version: Int = 1,
@@ -98,14 +108,17 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             if (s.status != Status.RUNNING) return@map track
             while (now >= s.deadlineMs) {
                 val final = s.index == s.steps.lastIndex
-                events += AlertEvent("${s.id}:${s.index}", track.definition.id, s.deadlineMs, final, track.definition.haptic, track.definition.morse)
+                events += AlertEvent("${s.id}:${s.index}", track.definition.id, s.deadlineMs, final,
+                    track.definition.haptic, track.definition.morse, track.definition.hapticRepeat,
+                    track.definition.customRepeatCount, track.definition.repeatDurationMs)
                 if (final) {
-                    s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = s.deadlineMs + 30_000)
+                    // A final alert remains animated until the user dismisses/resets it.
+                    s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = s.deadlineMs)
                     break
                 }
                 val next = s.steps[s.index + 1].durationMs
                 s = s.copy(index = s.index + 1, deadlineMs = s.deadlineMs + next, stepDurationMs = next,
-                    remainingMs = next, revision = s.revision + 1, visualUntilMs = s.deadlineMs + 2_000)
+                    remainingMs = next, revision = s.revision + 1, visualUntilMs = s.deadlineMs + 2_000, alertStartedAtMs = s.deadlineMs)
             }
             track.copy(session = s)
         }

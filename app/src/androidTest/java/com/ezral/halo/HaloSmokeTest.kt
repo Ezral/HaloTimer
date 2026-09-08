@@ -58,6 +58,31 @@ class HaloSmokeTest {
                 listOf(5, 11).forEach { x -> assertEquals("Transparent gap at ${x}dp", 0, Color.alpha(bitmap.getPixel((x * density).toInt(), view.height / 2))) }
                 bitmap.recycle()
             }
+            rule.runOnUiThread {
+                var frameTime = 1_000L
+                view.clock = { frameTime }; view.reducedMotion = false
+                val frames = mutableListOf<Bitmap>()
+                try {
+                    AlertStyle.entries.forEach { style ->
+                        view.tracks = listOf(Track(Definition(0, alert = style, glow = 0f),
+                            Session("alert", listOf(Step()), status = Status.COMPLETED, deadlineMs = 1_000,
+                                visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = 1_000)))
+                        fun frame(time: Long): Bitmap {
+                            frameTime = time
+                            return Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)); frames += it }
+                        }
+                        assertFalse("$style must animate", frame(1_000).sameAs(frame(1_700)))
+                        if (style == AlertStyle.ORBIT) {
+                            val before = frame(3_799); val after = frame(3_801)
+                            var changed = 0
+                            for (y in 0 until view.height step 2) for (x in 0 until view.width step 2) {
+                                if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
+                            }
+                            assertTrue("Orbit crosses the seam without restarting its length", changed < 500)
+                        }
+                    }
+                } finally { frames.forEach { it.recycle() } }
+            }
             // The decorative window must not consume a tap on the app beneath it.
             rule.onNodeWithContentDescription("Decrease seconds").performClick()
             rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
@@ -104,6 +129,54 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
     }
 
+    private fun checkSettingsEditors() {
+        val c = (rule.activity.application as HaloApplication).coordinator
+        rule.onNodeWithText("Morse", substring = false).performScrollTo().performClick()
+        rule.onNodeWithText("Edit", substring = false).performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Morse input").performTextReplacement("sos")
+        rule.onNodeWithText("Save").performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.morse == "SOS" }
+        rule.onNodeWithText(Morse.display("SOS")).assertExists()
+        screenshot("09-morse-saved")
+        rule.onNodeWithText("Custom", substring = false).performScrollTo().performClick()
+        rule.onNodeWithText("Duration", substring = false).performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Vibration duration").performScrollTo().performTextReplacement("2")
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.repeatDurationMs == 2_000L }
+        rule.onNodeWithText("Custom line color").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Custom color input").performTextReplacement("#FF2D2D")
+        rule.onNodeWithText("Save").performClick()
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.color == 0xFFFF2D2DL }
+        screenshot("10-custom-color")
+        rule.onNodeWithText("Off", substring = false).performScrollTo().performClick()
+    }
+
+    private fun checkRealCompletion() {
+        val c = (rule.activity.application as HaloApplication).coordinator
+        // The CI emulator disables window animations by default; enable animation for this regression.
+        shell("settings put global animator_duration_scale 1")
+        rule.waitUntil(5_000) { android.animation.ValueAnimator.areAnimatorsEnabled() }
+        c.submit(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 1_000, alert = AlertStyle.ORBIT, haptic = HapticStyle.OFF)))
+        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.durationMs == 1_000L }
+        rule.onNodeWithContentDescription("Start timer").performClick()
+        rule.waitUntil(8_000) { c.state.value.tracks[0].session?.status == Status.COMPLETED }
+        assertEquals(Long.MAX_VALUE, c.state.value.tracks[0].session?.visualUntilMs)
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val before = automation.takeScreenshot()
+        SystemClock.sleep(450)
+        val after = automation.takeScreenshot()
+        try {
+            val border = (rule.activity.resources.displayMetrics.density * 4).toInt()
+            var changed = 0
+            for (y in 0 until before.height) for (x in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
+            for (x in 0 until before.width) for (y in 0 until border) if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
+            assertTrue("Actual completion overlay must move", changed > 0)
+        } finally { before.recycle(); after.recycle() }
+        screenshot("11-actual-completion")
+        rule.waitUntil(5_000) { overlayNode("Hide or dismiss Timer A") != null }
+        overlayNode("Hide or dismiss Timer A")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        rule.waitUntil(5_000) { c.state.value.tracks[0].session == null }
+    }
+
     private fun screenshot(name: String) {
         rule.waitForIdle()
         // Capture as the shell directly into shared emulator output, outside app uninstall cleanup.
@@ -122,25 +195,30 @@ class HaloSmokeTest {
         rule.onNodeWithContentDescription("Increase seconds").performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 300_000L }
         screenshot("01-system-editor")
-        rule.onNodeWithText("System", substring = true).performClick()
+        rule.onNodeWithText("Light").performScrollTo().performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.prefs.value.theme == "Light" }
         screenshot("02-light-editor")
-        rule.onNodeWithText("Light", substring = true, ignoreCase = false).performClick()
+        rule.onNodeWithText("Dark").performScrollTo().performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.prefs.value.theme == "Dark" }
         screenshot("03-dark-editor")
+        rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
         checkFullDisplayAndSpacing()
-        rule.onNodeWithText("Start timer").performClick()
+        checkSettingsEditors()
+        rule.onNodeWithContentDescription("Decrease seconds").performScrollTo()
+        rule.onNodeWithContentDescription("Start timer").performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session != null }
         rule.waitUntil(5_000) { !rule.activity.hasWindowFocus() }
         screenshot("05-running-over-home")
         checkGlassDockAndPlayback()
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
         rule.waitUntil(5_000) { rule.activity.hasWindowFocus() }
-        rule.onNodeWithText("Pause").assertExists()
+        rule.onNodeWithContentDescription("Pause timer").assertExists()
+        rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") == null && overlayNode("Tap or drag inward to expand") == null }
         screenshot("06-running-settings")
-        rule.onNodeWithText("Pause").performClick()
+        rule.onNodeWithContentDescription("Pause timer").performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session?.status == com.ezral.halo.core.Status.PAUSED }
-        rule.onNodeWithText("Reset").performClick()
+        rule.onNodeWithText("Reset").performScrollTo().performClick()
         rule.waitUntil(5_000) { (rule.activity.application as HaloApplication).coordinator.state.value.tracks[0].session == null }
+        checkRealCompletion()
     }
 }

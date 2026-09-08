@@ -22,7 +22,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private val wm = context.getSystemService(WindowManager::class.java)
     private val density = context.resources.displayMetrics.density
     private var edge: EdgeView? = null
-    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var blur: Boolean? = null)
+    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var blur: Boolean? = null, var color: Long? = null)
     private val controls = mutableMapOf<Int, Control>()
     private var previewId = 0
     private var previewUntil = 0L
@@ -39,7 +39,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         if (previewing()) {
             val t = state.tracks[previewId]
             tracks.removeAll { it.definition.id == previewId }
-            tracks += t.copy(session = Session("preview", listOf(Step()), deadlineMs = now, status = Status.COMPLETED, visualUntilMs = previewUntil))
+            tracks += t.copy(session = Session("preview", listOf(Step()), deadlineMs = now, status = Status.COMPLETED, visualUntilMs = previewUntil, alertStartedAtMs = previewUntil - 5_000))
             tracks.sortBy { it.definition.id }
         }
         if (tracks.isEmpty()) { removeAll(); return }
@@ -47,17 +47,19 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             if (edge == null) { edge = EdgeView(context); wm.addView(edge, EdgeWindowLayout.create(context)) }
             val reduce = preferences.reducedMotion || !android.animation.ValueAnimator.areAnimatorsEnabled()
             edge?.apply { this.tracks = tracks; reducedMotion = reduce; invalidate() }
-            val visible = tracks.filterNot { it.definition.hidden }.associateBy { it.definition.id }
+            val visible = if (OverlayVisibility.menuVisible) emptyMap() else tracks.filterNot { it.definition.hidden }.associateBy { it.definition.id }
             controls.keys.toList().filter { it !in visible || controls[it]?.dock != visible[it]?.definition?.dock }.forEach { controls.remove(it)?.dialog?.dismiss() }
             visible.forEach { (id, t) ->
                 val control = controls.getOrPut(id) { createControl(t) }
                 // Capability can change at runtime (for example battery saver); refresh on service ticks.
                 val blur = control.dock == DockSide.NONE && Build.VERSION.SDK_INT >= 31 && wm.isCrossWindowBlurEnabled
-                if (control.blur != blur) {
+                if (control.blur != blur || control.color != t.definition.color) {
                     control.blur = blur
+                    control.color = t.definition.color
+                    val color = visible[id]?.definition?.color?.toInt() ?: 0xFFFFFFFF.toInt()
                     val glass = GlassBackground(intArrayOf(
-                        if (blur) 0xB8FFFFFF.toInt() else 0xECFFFFFF.toInt(),
-                        if (blur) 0x66EDF3FA else 0xCCDDE6F0.toInt(),
+                        blend(color, Color.WHITE, if (blur) .70f else .78f),
+                        blend(color, Color.WHITE, if (blur) .48f else .62f),
                     ), dp(if (control.dock == DockSide.NONE) 28 else 48).toFloat(), if (control.dock == DockSide.NONE) 0 else dp(24))
                     control.dialog.window!!.apply {
                         setBackgroundDrawable(if (control.dock == DockSide.NONE) glass else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
@@ -67,8 +69,10 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 }
                 val s = t.session!!
                 control.info?.apply {
-                    text = "${t.definition.name}\n${if (s.status == Status.COMPLETED) "Done" else formatTime(s.remaining(now))}${if (s.steps.size > 1) " · ${s.index + 1}/${s.steps.size}" else ""}"
-                    if (s.steps.size > 1) append("\n${s.steps[s.index].name}")
+                    text = "${t.overlayLabel()}\n${if (s.status == Status.COMPLETED) "Done" else formatTime(s.remaining(now))}"
+                    setTextColor(t.definition.color.toInt())
+                    setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+                    textSize = 16f
                     contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Drag to an edge to dock."
                 }
                 control.play?.apply {
@@ -126,7 +130,9 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
             button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
             button("⋮", "Open Halo settings") { settings(id) }
-            button("×", "Hide ${track.definition.name} control") { c.submit(Command.Hide(id, true)) }
+            button("×", "Hide or dismiss ${track.definition.name}") {
+                c.submit(if (c.state.value.tracks[id].session?.status == Status.COMPLETED) Command.Reset(id) else Command.Hide(id, true))
+            }
             info.setOnClickListener { toggle(id) }
             dialog.setContentView(root)
         }
@@ -184,8 +190,17 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         // The window remains non-modal and only its compact bounds receive touches.
         return Control(dialog, root, dock, info, play)
     }
+    fun hideControls() {
+        controls.values.forEach { runCatching { it.dialog.dismiss() } }; controls.clear()
+    }
     fun removeAll() {
         edge?.let { runCatching { wm.removeView(it) } }; edge = null
-        controls.values.forEach { runCatching { it.dialog.dismiss() } }; controls.clear()
+        hideControls()
+    }
+
+    private fun blend(from: Int, to: Int, amount: Float): Int {
+        fun channel(a: Int, b: Int) = (a + (b - a) * amount).toInt().coerceIn(0, 255)
+        return Color.argb(235, channel(Color.red(from), Color.red(to)),
+            channel(Color.green(from), Color.green(to)), channel(Color.blue(from), Color.blue(to)))
     }
 }

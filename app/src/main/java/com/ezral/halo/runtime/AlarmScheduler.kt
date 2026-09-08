@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.core.content.ContextCompat
 import com.ezral.halo.HaloApplication
 import com.ezral.halo.core.*
 import kotlinx.coroutines.launch
@@ -40,7 +41,13 @@ class AlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         val coordinator = (context.applicationContext as HaloApplication).coordinator
         coordinator.scope.launch {
-            try { coordinator.execute(Command.Tick) } finally { pending.finish() }
+            try {
+                coordinator.execute(Command.Tick)
+                // Recreate the renderer if Android reclaimed the service before the boundary.
+                if (coordinator.alarmScheduler.exactAvailable() && coordinator.state.value.tracks.any { it.session?.visualUntilMs?.let { until -> until > android.os.SystemClock.elapsedRealtime() } == true }) {
+                    runCatching { ContextCompat.startForegroundService(context, Intent(context, HaloRuntimeService::class.java).setAction("boundary")) }
+                }
+            } finally { pending.finish() }
         }
     }
 }

@@ -22,8 +22,14 @@ class DockedTimerView(context: Context) : View(context) {
         val cx = width / 2f; val cy = height / 2f; val radius = 48 * d
         // Keep the orbiting label outside the glass without a rectangular window-blur footprint.
         paint.style = Paint.Style.FILL
+        val line = t.definition.color.toInt()
+        val pale = Color.rgb(
+            (Color.red(line) * .38f + 255 * .62f).toInt(),
+            (Color.green(line) * .38f + 255 * .62f).toInt(),
+            (Color.blue(line) * .38f + 255 * .62f).toInt())
         paint.shader = LinearGradient(cx - radius, cy - radius, cx + radius, cy + radius,
-            0xEEFFFFFF.toInt(), 0xBCDCE8F8.toInt(), Shader.TileMode.CLAMP)
+            Color.argb(238, Color.red(line), Color.green(line), Color.blue(line)),
+            Color.argb(220, Color.red(pale), Color.green(pale), Color.blue(pale)), Shader.TileMode.CLAMP)
         paint.setShadowLayer(8 * d, 0f, 2 * d, 0x30000000)
         canvas.drawCircle(cx, cy, radius, paint)
         paint.shader = null; paint.clearShadowLayer()
@@ -36,16 +42,17 @@ class DockedTimerView(context: Context) : View(context) {
         val parts = formatTime(s.remaining(now)).split(":")
         canvas.drawText(parts[0], textX, cy - 3 * d, paint)
         canvas.drawText(parts[1], textX, cy + 19 * d, paint)
-        paint.textSize = 10 * d; paint.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); paint.textAlign = Paint.Align.LEFT
-        // A pale halo under the moving letters keeps the label legible over varied apps.
-        paint.setShadowLayer(2 * d, 0f, 0f, Color.WHITE)
+        paint.textSize = 15 * d; paint.typeface = Typeface.create("sans-serif", Typeface.BOLD); paint.textAlign = Paint.Align.LEFT
+        paint.color = t.definition.color.toInt()
         labelPath.reset(); labelPath.addCircle(cx, cy, 59 * d, Path.Direction.CW)
         canvas.save()
         if (!reducedMotion) canvas.rotate((now % 16_000) / 16_000f * 360, cx, cy)
-        val label = "${t.definition.name}  ·  "
-        val length = (2 * Math.PI * 59 * d).toFloat()
-        val count = (length / paint.measureText(label).coerceAtLeast(1f)).toInt().coerceAtLeast(1)
-        canvas.drawTextOnPath(label.repeat(count), labelPath, 0f, 0f, paint)
+        val fullLabel = t.overlayLabel()
+        // Keep one label on the circumference without overlapping its own beginning.
+        val label = android.text.TextUtils.ellipsize(fullLabel, android.text.TextPaint(paint),
+            (2 * Math.PI * 59 * d * .94).toFloat(), android.text.TextUtils.TruncateAt.END).toString()
+        // One solid label orbits the outside; it is intentionally not repeated around the circle.
+        canvas.drawTextOnPath(label, labelPath, 0f, 0f, paint)
         canvas.restore(); paint.clearShadowLayer()
         if (isAttachedToWindow && !reducedMotion) postInvalidateDelayed(33)
     }

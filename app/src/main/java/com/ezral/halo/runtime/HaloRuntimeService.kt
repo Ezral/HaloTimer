@@ -24,6 +24,7 @@ class HaloRuntimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         overlay = OverlayController(this, c)
+        scope.launch { com.ezral.halo.overlay.OverlayVisibility.changes.collect { if (it) overlay.hideControls() } }
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         ContextCompat.registerReceiver(this, displayReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON)
@@ -34,6 +35,7 @@ class HaloRuntimeService : Service() {
         scope.launch {
             c.initialize()
             when (intent?.action) {
+                "dismiss" -> c.execute(Command.Reset(intent.getIntExtra("track", 0)))
                 "stop" -> { c.execute(Command.StopAll); overlay.removeAll(); stopSelf(); return@launch }
                 "pause" -> c.state.value.tracks.forEach { c.execute(Command.Pause(it.definition.id)) }
                 "resume" -> c.execute(Command.Start((0..2).toSet()))
@@ -43,6 +45,15 @@ class HaloRuntimeService : Service() {
                     c.execute(Command.Start(if (id == -1) (0..2).toSet() else setOf(id)))
                 }
                 "preview" -> overlay.preview(intent.getIntExtra("track", 0))
+            }
+            // An until-dismiss haptic is state, not a one-shot. Resume it after process/service recreation.
+            c.state.value.tracks.forEach { track ->
+                val s = track.session
+                val d = track.definition
+                if (d.active && s?.status == Status.COMPLETED && s.visualUntilMs > SystemClock.elapsedRealtime() && d.haptic != HapticStyle.OFF && d.hapticRepeat == HapticRepeat.UNTIL_DISMISS) {
+                    c.haptics.enqueue(AlertEvent("${s.id}:${s.index}", d.id, SystemClock.elapsedRealtime(), true,
+                        d.haptic, d.morse, d.hapticRepeat, d.customRepeatCount, d.repeatDurationMs))
+                }
             }
             if (loop?.isActive != true) loop = scope.launch {
                 var lastNotice = 0L
@@ -66,7 +77,7 @@ class HaloRuntimeService : Service() {
         return START_NOT_STICKY // No blind overlay resurrection after a user/system stop.
     }
     override fun onDestroy() {
-        scope.cancel(); overlay.removeAll(); unregisterReceiver(displayReceiver)
+        scope.cancel(); c.haptics.cancelAll(); overlay.removeAll(); unregisterReceiver(displayReceiver)
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }

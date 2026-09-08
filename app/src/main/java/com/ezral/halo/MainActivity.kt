@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.ezral.halo.core.*
 import com.ezral.halo.runtime.HaloRuntimeService
+import com.ezral.halo.overlay.OverlayVisibility
 import com.ezral.halo.ui.HaloScreen
 import kotlinx.coroutines.*
 
@@ -55,6 +56,8 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("selected", selected); super.onSaveInstanceState(outState) }
+    override fun onStart() { super.onStart(); OverlayVisibility.shown(this) }
+    override fun onStop() { OverlayVisibility.hidden(this); super.onStop() }
     override fun onResume() { super.onResume(); c.scope.launch { c.initialize(); c.alarmScheduler.reconcile(c.state.value) } }
     override fun onPause() { cancelHold(); super.onPause() }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (!hasFocus) cancelHold() }

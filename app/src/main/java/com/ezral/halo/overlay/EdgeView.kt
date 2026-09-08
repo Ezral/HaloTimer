@@ -14,6 +14,7 @@ import kotlin.math.*
 class EdgeView(context: Context) : View(context) {
     var tracks: List<Track> = emptyList()
     var reducedMotion = false
+    internal var clock: () -> Long = { SystemClock.elapsedRealtime() }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.BUTT }
     private val measures = mutableListOf<PathMeasure>()
     private val segment = Path()
@@ -62,12 +63,12 @@ class EdgeView(context: Context) : View(context) {
         val to = from + fraction.coerceIn(0f, 1f)
         segment.reset()
         measure.getSegment(from * measure.length, min(to, 1f) * measure.length, segment, true)
-        if (to > 1) measure.getSegment(0f, (to - 1) * measure.length, segment, true)
+        if (to > 1) measure.getSegment(0f, (to - 1) * measure.length, segment, false)
         canvas.drawPath(segment, paint)
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas); geometry()
-        val now = SystemClock.elapsedRealtime()
+        val now = clock()
         tracks.forEachIndexed { i, track ->
             val s = track.session ?: return@forEachIndexed
             val m = measures[i]
@@ -79,20 +80,19 @@ class EdgeView(context: Context) : View(context) {
             val glow = track.definition.glow
             if (glow > 0) paint.setShadowLayer(widthDp * (0.5f + glow), 0f, 0f, paint.color)
             val alert = s.visualUntilMs > now
+            val elapsed = (now - s.alertStartedAtMs).coerceAtLeast(0)
             if (!alert) drawPart(canvas, m, 0f, if (s.status == Status.COMPLETED) 1f else s.progress(now))
             else if (reducedMotion) drawPart(canvas, m, 0f, 1f)
             else when (track.definition.alert) {
                 AlertStyle.BREATHE -> {
-                    paint.alpha = (100 + 155 * (0.5 + 0.5 * sin(now / 3200.0 * 2 * PI))).toInt()
+                    paint.alpha = AlertMotion.breathe(elapsed)
                     drawPart(canvas, m, 0f, 1f)
                 }
-                AlertStyle.ORBIT -> drawPart(canvas, m, (now % 2800) / 2800f, 0.20f)
+                AlertStyle.ORBIT -> drawPart(canvas, m, AlertMotion.orbit(elapsed), 0.20f)
                 AlertStyle.PING_PONG, AlertStyle.DOUBLE_PONG -> {
-                    val half = if (track.definition.alert == AlertStyle.DOUBLE_PONG) 2800 else 3600
-                    val phase = (now % (half * 2)) / half.toFloat()
-                    val pos = if (phase <= 1) phase else 2 - phase
-                    drawPart(canvas, m, pos * 0.8f, 0.2f)
-                    if (track.definition.alert == AlertStyle.DOUBLE_PONG) drawPart(canvas, m, pos * 0.8f + 0.5f, 0.2f)
+                    val pos = AlertMotion.pong(elapsed, track.definition.alert == AlertStyle.DOUBLE_PONG)
+                    drawPart(canvas, m, pos, 0.2f)
+                    if (track.definition.alert == AlertStyle.DOUBLE_PONG) drawPart(canvas, m, pos + 0.5f, 0.2f)
                 }
             }
         }

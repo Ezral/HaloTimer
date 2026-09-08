@@ -44,7 +44,13 @@ import com.ezral.halo.runtime.TimerCoordinator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val palette = listOf(0xFFAA9CFF, 0xFF57DDB4, 0xFFFFBA77, 0xFF7BBEFF, 0xFFFF90B4, 0xFFF2D46F)
+private val palette = listOf(
+    0xFFAA9CFF, 0xFF57DDB4, 0xFFFFBA77, 0xFF7BBEFF, 0xFFFF90B4, 0xFFF2D46F,
+    0xFFFF2D2D, // bright red
+    0xFF1565FF, // strong blue
+    0xFF8A2BE2, // purple
+)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HaloScreen(
     c: TimerCoordinator, initialSelected: Int,
@@ -94,30 +100,31 @@ fun HaloScreen(
             val accent = Color(d.color)
             val scroll = rememberScrollState()
             var pendingPreset by remember { mutableStateOf<List<Step>?>(null) }
+            var editingMorse by remember { mutableStateOf(false) }
+            var morseDraft by remember(d.morse) { mutableStateOf(d.morse) }
+            var customColor by remember { mutableStateOf(false) }
+            var colorDraft by remember(d.color) { mutableStateOf("#%06X".format(d.color and 0xFFFFFF)) }
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("halo", fontSize = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-2).sp)
-                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = {
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = {
                                 focus.clearFocus()
                                 if (s?.status == Status.RUNNING) c.submit(Command.Pause(selected)) else onLaunch(selected)
                             }, enabled = ready && d.active && s?.status !in listOf(Status.COMPLETED, Status.INTERRUPTED),
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
-                                Text(when (s?.status) { Status.RUNNING -> "Pause"; Status.PAUSED -> "Resume"; else -> "Start timer" }, fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                                modifier = Modifier.semantics { contentDescription = when (s?.status) { Status.RUNNING -> "Pause timer"; Status.PAUSED -> "Resume timer"; else -> "Start timer" } }) {
+                                Text(if (s?.status == Status.RUNNING) "Ⅱ" else "▶", fontSize = 22.sp)
                             }
-                            FilledTonalButton(onClick = { focus.clearFocus(); onLaunch(-1) }, enabled = ready && state.tracks.any { it.definition.active },
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
-                                Text("Start all", fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                            IconButton(onClick = { focus.clearFocus(); onLaunch(-1) }, enabled = ready && state.tracks.any { it.definition.active },
+                                modifier = Modifier.semantics { contentDescription = "Start all timers" }) {
+                                Text("▶▶", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             }
-                            TextButton(onClick = { c.submit(Command.StopAll) }, enabled = ready && state.tracks.any { it.session != null },
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
-                                Text("Stop all", fontSize = 12.sp, maxLines = 2, textAlign = TextAlign.Center)
+                            IconButton(onClick = { c.submit(Command.StopAll) }, enabled = ready && state.tracks.any { it.session != null },
+                                modifier = Modifier.semantics { contentDescription = "Stop all timers" }) {
+                                Text("■", fontSize = 21.sp)
                             }
                         }
-                    }
-                    TextButton(onClick = { c.scope.launch { c.preferences.theme(when (prefs.theme) { "System" -> "Light"; "Light" -> "Dark"; else -> "System" }) } }, modifier = Modifier.align(Alignment.End)) {
-                        Text(if (dark) "◐  ${prefs.theme}" else "◑  ${prefs.theme}")
                     }
                 }
                 Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 22.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -192,7 +199,7 @@ fun HaloScreen(
                 }
                 HaloCard {
                     Text("Edge light", fontWeight = FontWeight.SemiBold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), maxItemsInEachRow = 6) {
                         palette.forEach { color ->
                             val taken = state.tracks.any { it.definition.id != selected && it.definition.active && it.definition.color == color }
                             Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(enabled = !taken) { c.submit(Command.Edit(d.copy(color = color))) }.semantics { contentDescription = "${palette.indexOf(color) + 1}: ${if (taken) "Used by another timer" else "Choose color"}" }, contentAlignment = Alignment.Center) {
@@ -201,6 +208,7 @@ fun HaloScreen(
                             }
                         }
                     }
+                    OutlinedButton(onClick = { colorDraft = "#%06X".format(d.color and 0xFFFFFF); customColor = true }) { Text("Custom line color") }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AlertStyle.entries.forEach { style -> FilterChip(d.alert == style, { c.submit(Command.Edit(d.copy(alert = style))) }, { Text(when (style) { AlertStyle.BREATHE -> "Breathe"; AlertStyle.ORBIT -> "Orbit"; AlertStyle.PING_PONG -> "Ping-pong"; AlertStyle.DOUBLE_PONG -> "Double pong" }) }) }
                     }
@@ -216,11 +224,52 @@ fun HaloScreen(
                         HapticStyle.entries.forEach { style -> FilterChip(d.haptic == style, { c.submit(Command.Edit(d.copy(haptic = style))) }, { Text(when (style) { HapticStyle.OFF -> "Off"; HapticStyle.DOUBLE_TAP -> "Double tap"; HapticStyle.MORSE -> "Morse" }) }) }
                     }
                     if (d.haptic == HapticStyle.MORSE) {
-                        CommitText(d.morse, "Morse text", maxLength = 24) { c.submit(Command.Edit(d.copy(morse = it))) }
-                        Text(Morse.display(d.morse), fontFamily = FontFamily.Monospace, color = scheme.primary)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(d.morse, fontWeight = FontWeight.SemiBold)
+                                Text(Morse.display(d.morse), fontFamily = FontFamily.Monospace, color = accent)
+                            }
+                            TextButton(onClick = { morseDraft = d.morse; editingMorse = true }) { Text("Edit") }
+                        }
                         Text("${Morse.encode(d.morse).sumOf { it.ms } / 1000.0}s", color = scheme.onSurfaceVariant, fontSize = 12.sp)
                     }
-                    if (d.haptic != HapticStyle.OFF) TextButton(onClick = { c.haptics.preview(d) }) { Text("Test vibration") }
+                    if (d.haptic != HapticStyle.OFF) {
+                        Text("Repeat", color = scheme.onSurfaceVariant)
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            HapticRepeat.entries.filterNot { it == HapticRepeat.TIMED }.forEach { repeat ->
+                                FilterChip(d.hapticRepeat == repeat || (repeat == HapticRepeat.CUSTOM && d.hapticRepeat == HapticRepeat.TIMED), { c.submit(Command.Edit(d.copy(hapticRepeat = repeat))) }, {
+                                    Text(when (repeat) { HapticRepeat.ONCE -> "Once"; HapticRepeat.THREE -> "3×"; HapticRepeat.FIVE -> "5×"; HapticRepeat.UNTIL_DISMISS -> "Until dismiss"; HapticRepeat.CUSTOM, HapticRepeat.TIMED -> "Custom" })
+                                })
+                            }
+                        }
+                        if (d.hapticRepeat in listOf(HapticRepeat.CUSTOM, HapticRepeat.TIMED)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(d.hapticRepeat == HapticRepeat.CUSTOM, { c.submit(Command.Edit(d.copy(hapticRepeat = HapticRepeat.CUSTOM))) }, { Text("Repetitions") })
+                                FilterChip(d.hapticRepeat == HapticRepeat.TIMED, { c.submit(Command.Edit(d.copy(hapticRepeat = HapticRepeat.TIMED))) }, { Text("Duration") })
+                            }
+                        }
+                        if (d.hapticRepeat == HapticRepeat.TIMED) {
+                            var seconds by remember(d.repeatDurationMs) { mutableStateOf((d.repeatDurationMs / 1000).toString()) }
+                            OutlinedTextField(seconds, { value ->
+                                if (value.length <= 4 && value.all(Char::isDigit)) {
+                                    seconds = value
+                                    value.toLongOrNull()?.takeIf { it in 1..3600 }?.let { c.submit(Command.Edit(d.copy(repeatDurationMs = it * 1000))) }
+                                }
+                            }, label = { Text("Duration in seconds (1–3600)") }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Vibration duration" })
+                        }
+                        if (d.hapticRepeat == HapticRepeat.CUSTOM) {
+                            var repeats by remember(d.customRepeatCount) { mutableStateOf(d.customRepeatCount.toString()) }
+                            OutlinedTextField(repeats, { value ->
+                                if (value.length <= 2 && value.all(Char::isDigit)) {
+                                    repeats = value
+                                    value.toIntOrNull()?.takeIf { it in 1..99 }?.let { c.submit(Command.Edit(d.copy(customRepeatCount = it))) }
+                                }
+                            }, label = { Text("Number of repeats (1–99)") }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    if (d.haptic != HapticStyle.OFF) TextButton(onClick = { c.haptics.preview(d) }) { Text("Test vibration once") }
                 }
                 HaloCard {
                     Text("Controls", fontWeight = FontWeight.SemiBold)
@@ -236,10 +285,36 @@ fun HaloScreen(
                     if (!notifications) TextButton(onClick = onNotificationPermission) { Text("Enable timer notifications") }
                     Text(if (!exact) "Screen-off alerts may be delayed." else "Short sequence alerts during deep sleep still depend on Android.", color = scheme.onSurfaceVariant, fontSize = 12.sp)
                 }
-                Text("HALO  /  0.1 ALPHA 02", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                HaloCard {
+                    Text("Appearance", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("System", "Light", "Dark").forEach { theme ->
+                            FilterChip(prefs.theme == theme, { c.scope.launch { c.preferences.theme(theme) } }, { Text(if (theme == "System") "Follow system" else theme) })
+                        }
+                    }
+                }
+                Text("HALO  /  0.1 ALPHA 03", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
+            if (editingMorse) AlertDialog(onDismissRequest = { editingMorse = false }, title = { Text("Morse vibration text") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(morseDraft, { if (it.length <= 24) morseDraft = it }, singleLine = true, label = { Text("Text") }, modifier = Modifier.semantics { contentDescription = "Morse input" })
+                    Text(Morse.display(morseDraft), fontFamily = FontFamily.Monospace, color = accent)
+                    Morse.validate(morseDraft)?.let { Text(it, color = scheme.error, fontSize = 12.sp) }
+                }
+            }, confirmButton = { TextButton(onClick = { c.submit(Command.Edit(d.copy(morse = Morse.normalize(morseDraft)))); editingMorse = false }, enabled = Morse.validate(morseDraft) == null) { Text("Save") } }, dismissButton = { TextButton(onClick = { editingMorse = false }) { Text("Cancel") } })
+            if (customColor) AlertDialog(onDismissRequest = { customColor = false }, title = { Text("Custom line color") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(colorDraft, { if (it.length <= 7) colorDraft = it.uppercase() }, singleLine = true, label = { Text("Hex color") }, modifier = Modifier.semantics { contentDescription = "Custom color input" })
+                    parseLineColor(colorDraft)?.let { color -> Box(Modifier.fillMaxWidth().height(32.dp).background(Color(color), RoundedCornerShape(12.dp))) }
+                    Text("Example: #FF2D2D", color = scheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+            }, confirmButton = { TextButton(onClick = {
+                parseLineColor(colorDraft)?.let { parsed ->
+                    c.submit(Command.Edit(d.copy(color = parsed))); customColor = false
+                }
+            }, enabled = parseLineColor(colorDraft) != null) { Text("Save") } }, dismissButton = { TextButton(onClick = { customColor = false }) { Text("Cancel") } })
         }
     }
 }
@@ -326,3 +401,5 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
         }
     }
 }
+
+private fun parseLineColor(text: String): Long? = text.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)?.let { it or 0xFF000000L }

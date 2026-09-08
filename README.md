@@ -65,3 +65,10 @@ Start timer, Start all and Stop all live in a persistent top-right header.
 The decorative halo now uses full display coordinates, including the status and navigation bar regions, with a 2dp gap between 4dp tracks. On Android 12+, reported physical corner radii shape the border. Starting/resuming sends Halo to the background; preview stays in settings. System UI retains its normal z-order: opaque system surfaces can still cover a normal application overlay.
 
 The first alpha used an ephemeral CI debug signing key. Android may require a one-time uninstall of alpha 01 before installing this build; uninstalling clears local timers/settings. Subsequent CI builds cache the debug keystore within this review branch to support in-place development updates while that cache is retained. Production signing remains separate and unconfigured.
+
+
+## Alpha 03 — continuous alerts and controls
+
+Completion lighting continues until Dismiss, with smooth wrapping and pong turns. Vibration (including Morse) supports Once, 3×, 5×, Until dismiss, or a custom cycle count/duration. Parallel timer vibrations take turns; previews play once. Finite repeats do not resume after process loss.
+
+Opening Halo hides floating controls temporarily. Their backgrounds follow the chosen line color, and the dock has one larger bold rotating label with the current sequence step and timer name. The palette adds bright red, strong blue and purple; a custom hex dialog accepts any opaque RGB color. Header actions use icons, Morse editing opens a Save/Cancel popup, and appearance options live at the bottom.

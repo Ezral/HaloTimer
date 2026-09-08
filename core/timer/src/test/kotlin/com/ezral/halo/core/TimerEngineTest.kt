@@ -63,6 +63,17 @@ class TimerEngineTest {
         assertEquals(s, engine.reconcile(s, 570_000))
         assertTrue(engine.reconcile(s.copy(outbox = emptyList()), 570_001).outbox.isEmpty())
     }
+    @Test fun finalAlertPersistsUntilDismissAndCarriesRepeatPolicy() {
+        val configured = all(1_000).let { snapshot -> snapshot.copy(tracks = snapshot.tracks.map { track ->
+            if (track.definition.id == 0) track.copy(definition = track.definition.copy(
+                haptic = HapticStyle.MORSE, morse = "SOS", hapticRepeat = HapticRepeat.FIVE)) else track
+        }) }
+        val completed = engine.reconcile(run(configured, 0), 1_000)
+        assertEquals(Status.COMPLETED, completed.tracks[0].session!!.status)
+        assertEquals(Long.MAX_VALUE, completed.tracks[0].session!!.visualUntilMs)
+        assertEquals(HapticRepeat.FIVE, completed.outbox.first { it.track == 0 }.repeat)
+        assertNull(engine.apply(completed, Command.Reset(0), 1_001).snapshot.tracks[0].session)
+    }
     @Test fun boundaryPrecedesPause() {
         val s = engine.apply(run(sequence(), 0), Command.Pause(0), 30_000).snapshot
         assertEquals(1, s.tracks[0].session!!.index)

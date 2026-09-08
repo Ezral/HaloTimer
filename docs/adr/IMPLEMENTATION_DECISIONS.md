@@ -84,3 +84,14 @@ Reference: https://source.android.com/docs/core/display/window-blurs
 Floating reset rewinds the run to its first step and waits for Play, keeping the control visible. Paused runs retain the foreground service and its stop notification so playback remains available over other apps; idle ticks slow to 1 Hz. Editor Reset continues to clear the run for structural editing.
 
 Visual QA found that an inset Window background displaced/clipped dock digits. The pill uses a padding-free background drawable; the dock draws its circular glass tint and shadow directly on a transparent window, keeping the label outside the circle. Native backdrop blur is limited to expanded pills to avoid a rectangular blur footprint surrounding the dock.
+
+
+## ADR 011 — Continuous completion alerts and repeat policies
+
+Final edge alerts persist until dismissal. Their phase is anchored to the actual step boundary rather than a loop restart; orbit segments cross the closed path seam, and pong reversals use a smooth cosine. The native renderer is tested with distinct frames and immediately before/after the orbit seam, and instrumentation expires a real timer over Home. Reduced motion still follows the app setting and Android's animation setting.
+
+Haptic policies are Once, 3×, 5×, Until dismiss and Custom (1–99 cycles or 1–3600 seconds). A fair queue submits one unchanged double-tap or Morse waveform at a time, with at least 700 ms between cycles. Parallel tracks take turns. Timed cycles are cut at their deadline. Intermediate until-dismiss requests play once; advancing a sequence cancels its prior step's pending cycles. Reset, rewind, deactivate, vibration Off and Stop all cancel the relevant output. The completion notification and floating × expose Dismiss. Preview plays once. Finite repeat progress is process-local; it is not replayed after process loss. An active until-dismiss final alert can resume with an explicitly restarted runtime, subject to Android vibration policy.
+
+Menu visibility is tracked across activity instances and immediately hides every floating control without changing saved hide/dock preferences. The edge remains visible. Floating backgrounds follow the line color; the dock shows one bold, larger current-step/timer label, clipped only by the physical screen (long labels are ellipsized before they overlap). Expanded labels use the same content. Color changes invalidate the glass tint. Colors include bright red, strong blue and purple, plus an opaque hex color dialog. Palette rows wrap to fit narrow phones.
+
+Header actions are icons with accessibility labels. Appearance sits at the bottom with Follow system, Light and Dark. Morse text is edited in a validated Save/Cancel dialog; the normalized text and Morse symbols update together on Save.
