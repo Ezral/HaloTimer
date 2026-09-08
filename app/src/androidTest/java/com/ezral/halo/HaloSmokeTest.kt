@@ -199,9 +199,12 @@ class HaloSmokeTest {
             if (capture) screenshot("12-dock-blob-menu")
             pointer(android.view.MotionEvent.ACTION_MOVE, targetX, targetY)
             pointer(android.view.MotionEvent.ACTION_UP, targetX, targetY)
-            // Off-target cancellation has no state change to await. The next gesture must
-            // begin after the 190ms retracting window has left the input stack.
-            SystemClock.sleep(260)
+            // Cancellation has no timer-state change to await. Wait for the actual window
+            // removal, including WindowManager/input-stack propagation after its exit frames.
+            rule.waitUntil(5_000) {
+                automation.windows.none { it.title?.toString() == "Halo dock actions" }
+            }
+            SystemClock.sleep(150)
         }
         val menuTop = (dockBounds.centerY() - 144 * density).coerceAtLeast(0f)
         fun arcX(degrees: Double) = (kotlin.math.cos(Math.toRadians(degrees)) * 108 * density).toFloat()
