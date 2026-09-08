@@ -82,7 +82,7 @@ class HaloMarketingCapture {
         runBlocking { c.preferences.theme("Dark"); c.preferences.dismissAllOnMenu(false); c.preferences.motion(false) }
         val names = listOf("Pour-over", "Tea", "Focus")
         val colors = listOf(0xFF8A2BE2L, 0xFF00B890L, 0xFFFF8C36L)
-        (0..2).forEach { id -> command(Command.Edit(Definition(id, name = names[id], active = true,
+        (0..2).forEach { id -> command(Command.Activate(id, true)); command(Command.Edit(Definition(id, name = names[id], active = true,
             durationMs = listOf(150_000L, 180_000L, 300_000L)[id], color = colors[id], haptic = HapticStyle.OFF,
             x = .48f, y = .25f + id * .12f, glow = .6f))) }
         rule.waitForIdle(); SystemClock.sleep(300); shot("01-dark-menu")
@@ -91,6 +91,7 @@ class HaloMarketingCapture {
         rule.waitForIdle(); SystemClock.sleep(300); shot("03-sequence-menu")
         command(Command.Edit(c.state.value.tracks[0].definition.copy(sequence = false)))
         start(setOf(0, 1, 2))
+        check(c.state.value.tracks.count { it.session?.status == Status.RUNNING } == 3) { "All three capture timers must run" }
         bounds("Drag to an edge to dock")
         record("01-parallel-timers", 12) {
             SystemClock.sleep(1800); shot("04-parallel-overlay")
