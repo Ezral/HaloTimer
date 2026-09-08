@@ -63,14 +63,16 @@ class MainActivity : ComponentActivity() {
         } catch (_: RuntimeException) { c.error.value = "Android could not start Halo. Keep the app open and try again." }
     }
     private fun cancelHold() { handler.removeCallbacks(repeat); heldKey = null; target = null; exhausted = false }
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_UP && event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return super.dispatchKeyEvent(event)
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = handleVolume(event) || super.onKeyDown(keyCode, event)
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = handleVolume(event) || super.onKeyUp(keyCode, event)
+    private fun handleVolume(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_UP && event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
         if (event.action == KeyEvent.ACTION_UP && heldKey == event.keyCode) { cancelHold(); return true }
-        if (!c.prefs.value.volume || !c.ready.value) { cancelHold(); return super.dispatchKeyEvent(event) }
+        if (!c.prefs.value.volume || !c.ready.value) { cancelHold(); return false }
         val track = c.state.value.tracks[selected]
-        if (!track.definition.active || track.session?.status in listOf(Status.COMPLETED, Status.INTERRUPTED)) return super.dispatchKeyEvent(event)
-        if (event.isCanceled) { cancelHold(); return super.dispatchKeyEvent(event) }
-        if (heldKey != null && heldKey != event.keyCode) { cancelHold(); return super.dispatchKeyEvent(event) }
+        if (!track.definition.active || track.session?.status in listOf(Status.COMPLETED, Status.INTERRUPTED)) return false
+        if (event.isCanceled) { cancelHold(); return false }
+        if (heldKey != null && heldKey != event.keyCode) { cancelHold(); return false }
         if (event.action == KeyEvent.ACTION_DOWN) {
             if (event.repeatCount == 0 && heldKey == null) {
                 heldKey = event.keyCode; target = c.target(selected, selectedStep); downAt = SystemClock.elapsedRealtime(); exhausted = false
@@ -79,6 +81,6 @@ class MainActivity : ComponentActivity() {
             }
             return heldKey == event.keyCode || exhausted
         }
-        return super.dispatchKeyEvent(event)
+        return false
     }
 }
