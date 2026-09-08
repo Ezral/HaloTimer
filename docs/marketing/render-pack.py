@@ -45,7 +45,7 @@ def poster(name,src,title,sub,light=False):
 def video(name,src,title,sub,duration,start=0,tag='ANDROID • HALOTIMER'):
     template=WORK/(Path(name).stem+'-layout.png'); base(title,sub,tag=tag).save(template)
     cmd=['ffmpeg','-v','error','-y','-loop','1','-framerate','30','-i',str(template),'-ss',str(start),'-i',str(RAW/src),
-         '-filter_complex_threads','1','-filter_complex',f'[1:v]scale={SW}:{SH}:flags=lanczos,setsar=1,fps=30[screen];[0:v][screen]overlay={X}:{Y}:shortest=1,format=yuv420p[v]',
+         '-filter_complex_threads','1','-filter_complex',f'[1:v]setpts=PTS-STARTPTS,scale={SW}:{SH}:flags=lanczos,setsar=1,fps=30,tpad=stop_mode=clone:stop_duration=1[screen];[0:v][screen]overlay={X}:{Y}:shortest=1,format=yuv420p[v]',
          '-map','[v]','-t',str(duration),'-an','-c:v','libx264','-threads','2','-preset','fast','-crf','19','-movflags','+faststart',str(OUT/name)]
     subprocess.run(cmd,check=True)
 
