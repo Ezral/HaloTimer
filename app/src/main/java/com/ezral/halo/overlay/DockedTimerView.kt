@@ -55,18 +55,17 @@ class DockedTimerView(context: Context) : View(context) {
         val start = if (fullCircle || t.definition.dock==DockSide.LEFT) -90f else 90f
         labelPath.addArc(cx-orbitRadius,cy-orbitRadius,cx+orbitRadius,cy+orbitRadius,start,360f)
         val distance = if (reducedMotion) 0f else ((now-born)/1000f * (2*Math.PI*orbitRadius/6).toFloat())
-        // A clipped dock scrolls only through its visible semicircle, with no invisible half-turn wait.
-        // A freely dragged full circle makes an uninterrupted full revolution.
-        val offset = if (fullCircle) distance%arc else if (reducedMotion) 0f else distance%(arc+labelWidth)-labelWidth
+        // Restart the whole label as soon as its leading end would cross the cropped edge.
+        // Rotate the canvas instead of using negative path offsets, which clamp glyphs together.
+        val offset = if (fullCircle) distance%arc else if (reducedMotion) 0f else
+            ((now-born)%3_000)/3_000f*(arc-labelWidth).coerceAtLeast(0f)
         canvas.save()
         if (!fullCircle) {
             if (t.definition.dock==DockSide.LEFT) canvas.clipRect(cx,0f,width.toFloat(),height.toFloat())
             else canvas.clipRect(0f,0f,cx,height.toFloat())
         }
-        if (fullCircle) {
-            canvas.rotate(offset/arc*360f,cx,cy)
-            canvas.drawTextOnPath(cachedLabel,labelPath,0f,0f,paint)
-        } else canvas.drawTextOnPath(cachedLabel,labelPath,offset,0f,paint)
+        canvas.rotate((offset/orbitRadius*180/Math.PI).toFloat(),cx,cy)
+        canvas.drawTextOnPath(cachedLabel,labelPath,0f,0f,paint)
         canvas.restore()
         if (isAttachedToWindow && !reducedMotion) postInvalidateOnAnimation()
     }
