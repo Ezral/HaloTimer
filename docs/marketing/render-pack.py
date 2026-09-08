@@ -55,29 +55,28 @@ if __name__=='__main__':
     poster('HaloTimer-03-Controls.png','07-dock-actions.png','Hold. Slide.\nKeep going.','Playback controls, right at your fingertips.')
     poster('HaloTimer-04-Sequences.png','03-sequence-menu.png','One ritual.\nEvery step.','Named sequences that flow from one timer to the next.',True)
     poster('HaloTimer-05-Dark.png','01-dark-menu.png','Make time\nyour own.','Three tracks. Custom colors. Light or dark.')
-    poster('HaloTimer-06-Overlay.png','05-over-android-settings.png','Switch apps.\nStay on time.','Your countdown stays with you.')
-    video('HaloTimer-Parallel-12s.mp4','01-parallel-timers.mp4','Three timers.\nOne glance.','Switch apps. Your countdowns stay with you.',12)
-    video('HaloTimer-Dock-16s.mp4','02-fluid-dock.mp4','Time, tucked\ninto the edge.','Drag to dock. Hold for controls. Pull to expand.',16)
+    poster('HaloTimer-06-Glass.png','08-compact-glass.png','Small control.\nFull focus.','Pause, play and reset without opening the menu.')
+    def concat(parts,name):
+     listing=WORK/f'{name}.txt';listing.write_text(''.join("file '"+str(OUT/p)+"'\n" for p in parts))
+     subprocess.run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(listing),'-c','copy','-movflags','+faststart',str(OUT/name)],check=True)
+     for p in parts:(OUT/p).unlink()
+    video('parallel-a.mp4','01-parallel-timers.mp4','Three timers.\nOne glance.','Independent countdowns. Your own colors.',3,0)
+    video('parallel-b.mp4','01-parallel-timers.mp4','Three timers.\nOne glance.','Independent countdowns. Your own colors.',3,8.3)
+    concat(['parallel-a.mp4','parallel-b.mp4'],'HaloTimer-Parallel-6s.mp4')
+    video('HaloTimer-Dock-14s.mp4','02-fluid-dock.mp4','Time, tucked\ninto the edge.','Drag to dock. Hold for controls. Pull to expand.',14)
     parts=[]
-    for n,(source,label) in enumerate([('03-alert-breathe.mp4','BREATHE'),('04-alert-orbit.mp4','ORBIT'),('05-alert-ping_pong.mp4','PING-PONG'),('06-alert-double_pong.mp4','DOUBLE PONG')]):
-        dest=f'HaloTimer-alert-part-{n}.mp4'
-        video(dest,source,'Time is up.\nLet it glow.',label+'  /  Choose your completion animation.',5,start=.8)
-        parts.append(OUT/dest)
-    listing=WORK/'alerts.txt'; listing.write_text(''.join("file '"+str(p)+"'\n" for p in parts))
-    subprocess.run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(listing),'-c','copy','-movflags','+faststart',str(OUT/'HaloTimer-Alerts-20s.mp4')],check=True)
-    for p in parts:p.unlink()
-    # Three six-second real-time excerpts; cuts are editorial, timer motion is unchanged.
-    hero=[]
-    for idx,(src,start,title,sub) in enumerate([
-      ('01-parallel-timers.mp4',.7,'Time, in view.\nLife, in motion.','Meet HaloTimer for Android.'),
-      ('02-fluid-dock.mp4',1.4,'A timer that\nfinds its place.','Fluid docking. Controls within reach.'),
-      ('04-alert-orbit.mp4',.7,'Your next timer\nhas a halo.','Custom colors. Sequences. Edge-light alerts.')]):
-        dest=f'HaloTimer-hero-part-{idx}.mp4'; video(dest,src,title,sub,6,start);hero.append(OUT/dest)
-    listing=WORK/'hero.txt'; listing.write_text(''.join("file '"+str(p)+"'\n" for p in hero))
-    subprocess.run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',str(listing),'-c','copy','-movflags','+faststart',str(OUT/'HaloTimer-Hero-18s.mp4')],check=True)
-    for p in hero:p.unlink()
-    thumbs=Image.new('RGB',(1080,1280),(14,16,22))
-    for i,p in enumerate(sorted(OUT.glob('*.png'))):
-        thumbs.paste(Image.open(p).resize((360,640),Image.Resampling.LANCZOS),((i%3)*360,(i//3)*640))
-    thumbs.save(OUT/'HaloTimer-Screenshot-Preview.jpg',quality=92)
-    print('Marketing layouts and clips rendered.')
+    for n,(src,label) in enumerate([('03-alert-breathe.mp4','BREATHE'),('04-alert-orbit.mp4','ORBIT'),('05-alert-ping_pong.mp4','PING-PONG'),('06-alert-double_pong.mp4','DOUBLE PONG')]):
+     p=f'alert-{n}.mp4';video(p,src,'Time is up.\nLet it glow.',label+'  /  Choose your completion animation.',5,.1);parts.append(p)
+    concat(parts,'HaloTimer-Alerts-20s.mp4')
+    parts=[]
+    for n,(src,start,duration,title,sub) in enumerate([
+     ('01-parallel-timers.mp4',0,3,'Time, in view.\nLife, in motion.','Meet HaloTimer for Android.'),
+     ('02-fluid-dock.mp4',1,9,'A timer that\nfinds its place.','Fluid docking. Controls within reach.'),
+     ('04-alert-orbit.mp4',.1,6,'Your next timer\nhas a halo.','Custom colors. Sequences. Edge-light alerts.')]):
+     p=f'hero-{n}.mp4';video(p,src,title,sub,duration,start);parts.append(p)
+    concat(parts,'HaloTimer-Hero-18s.mp4')
+    thumb=Image.new('RGB',(1080,1280),(14,16,22))
+    for i,p in enumerate(sorted(OUT.glob('HaloTimer-0*.png'))):
+     im=Image.open(p);im.load();thumb.paste(im.resize((360,640),Image.Resampling.LANCZOS),((i%3)*360,(i//3)*640))
+    thumb.save(OUT/'HaloTimer-Screenshot-Preview.jpg',quality=92)
+    print('FINAL EXPORT COMPLETE',flush=True)
