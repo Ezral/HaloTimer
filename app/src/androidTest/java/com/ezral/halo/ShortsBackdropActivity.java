@@ -35,7 +35,7 @@ public class ShortsBackdropActivity extends Activity {
                         AssetFileDescriptor fd=getAssets().openFd("short"+(index+1)+".mp4");
                         mp.setDataSource(fd.getFileDescriptor(),fd.getStartOffset(),fd.getLength());fd.close();
                         Surface surface=new Surface(st);mp.setSurface(surface);surface.release();
-                        mp.setLooping(true);mp.setVolume(0,0);mp.setOnPreparedListener(m->{m.start();});mp.prepareAsync();
+                        mp.setLooping(true);mp.setVolume(0,0);mp.setOnPreparedListener(m->{if(index==0)m.start();else m.seekTo(0);});mp.prepareAsync();
                     } catch(Exception e) { throw new RuntimeException(e); }
                 }
                 public void onSurfaceTextureSizeChanged(SurfaceTexture s,int w,int h) {}
@@ -78,9 +78,9 @@ public class ShortsBackdropActivity extends Activity {
         root.setOnTouchListener((v,event)->{
             if(event.getAction()==MotionEvent.ACTION_DOWN) { downY=event.getY();return true; }
             if(event.getAction()==MotionEvent.ACTION_UP && downY-event.getY()>80 && !switching) {
-                switching=true;int next=1-current;int height=root.getHeight();cards[next].setTranslationY(height);
+                switching=true;int next=1-current;int height=root.getHeight();if(players[next]!=null)players[next].start();cards[next].setTranslationY(height);
                 cards[current].animate().translationY(-height).setDuration(420).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).start();
-                cards[next].animate().translationY(0).setDuration(420).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).withEndAction(()->{current=next;switching=false;root.setContentDescription("Video "+(current+1));}).start();
+                cards[next].animate().translationY(0).setDuration(420).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).withEndAction(()->{if(players[current]!=null)players[current].pause();current=next;switching=false;root.setContentDescription("Video "+(current+1));}).start();
             }
             return true;
         });

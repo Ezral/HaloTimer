@@ -35,7 +35,7 @@ class HaloFoldPromoCapture {
         val a=inst.uiAutomation;a.serviceInfo=a.serviceInfo.apply { flags=flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS }
         fun find(n:android.view.accessibility.AccessibilityNodeInfo?):android.view.accessibility.AccessibilityNodeInfo? {
             if(n==null) return null
-            if(n.contentDescription?.toString()?.contains(label)==true) return n
+            if(n.contentDescription?.toString()?.contains(label)==true || n.text?.toString()==label) return n
             for(i in 0 until n.childCount) find(n.getChild(i))?.let { return it };return null
         }
         return a.windows.firstNotNullOfOrNull { find(it.root) }
@@ -57,25 +57,28 @@ class HaloFoldPromoCapture {
             c.preferences.completionEnabled(true);c.preferences.completionSeconds(9)
             c.preferences.completionTextSp(36);c.preferences.completionBold(true)
         }
-        command(Command.Edit(Definition(0,name="Gym Set Rest",durationMs=16_000,color=0xFF57DDB4L,haptic=HapticStyle.OFF,dock=DockSide.LEFT,x=0f,y=.45f,glow=.45f)))
+        command(Command.Edit(Definition(0,name="Gym Set Rest",durationMs=18_000,color=0xFF57DDB4L,haptic=HapticStyle.OFF,dock=DockSide.LEFT,x=0f,y=.45f,glow=.45f)))
         shell("am start -W -n com.ezral.halo.debug.test/com.ezral.halo.ShortsBackdropActivity")
         waitFor { !activity.hasWindowFocus() };SystemClock.sleep(3000)
-        val recording=inst.uiAutomation.executeShellCommand("screenrecord --size 984x1092 --bit-rate 10000000 --time-limit 25 /sdcard/Download/halo-fold-promo/countdown-swipe-completion.mp4")
+        node("Got it")?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        check(node("Viewing full screen")==null) { "Dismiss immersive-mode onboarding before recording" }
+        val recording=inst.uiAutomation.executeShellCommand("screenrecord --size 984x1092 --bit-rate 10000000 --time-limit 28 /sdcard/Download/halo-fold-promo/countdown-swipe-completion.mp4")
         SystemClock.sleep(700)
         command(Command.Start(setOf(0)))
         inst.runOnMainSync { app.startForegroundService(Intent(app,HaloRuntimeService::class.java)) }
         waitFor { node("Tap or drag inward to expand")!=null }
         SystemClock.sleep(2600)
-        shell("screencap -p /sdcard/Download/halo-fold-promo/01-countdown.png")
-        shell("input swipe 1100 1650 1100 550 420")
+        shell("input swipe 550 825 550 275 420")
         waitFor { node("Video 2")!=null }
         assertEquals(Status.RUNNING,c.state.value.tracks[0].session?.status)
-        SystemClock.sleep(2000)
-        shell("screencap -p /sdcard/Download/halo-fold-promo/02-next-video.png")
-        waitFor { c.state.value.tracks[0].session?.status==Status.COMPLETED }
+        val completionDeadline=SystemClock.elapsedRealtime()+25_000
+        while(c.state.value.tracks[0].session?.status!=Status.COMPLETED) {
+            check(SystemClock.elapsedRealtime()<completionDeadline);SystemClock.sleep(100)
+        }
         waitFor { node("Timer is completed for")!=null }
         SystemClock.sleep(1000)
         shell("screencap -p /sdcard/Download/halo-fold-promo/03-completion.png")
         ParcelFileDescriptor.AutoCloseInputStream(recording).use { it.readBytes() }
     }
 }
+

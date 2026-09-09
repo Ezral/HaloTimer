@@ -2,11 +2,12 @@
 set -euo pipefail
 mkdir -p fold-promo-captures
 adb emu unfold
-# Portrait Fold7 inner-display pixel dimensions, with an explicit test density.
+# Half-resolution Fold7 aspect ratio; half density preserves the same logical layout.
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
-adb shell wm size 1968x2184
-adb shell wm density 368
+adb shell wm size 984x1092
+adb shell wm density 184
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell am force-stop com.android.launcher3
 adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.HOME
 adb shell wm size > fold-promo-captures/display-size.txt
