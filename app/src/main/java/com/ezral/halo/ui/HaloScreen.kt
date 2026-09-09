@@ -276,6 +276,34 @@ fun HaloScreen(
                     if (d.haptic != HapticStyle.OFF) TextButton(onClick = { c.haptics.preview(d) }) { Text("Test vibration once") }
                 }
                 HaloCard {
+                    Text("Floating bar", fontWeight = FontWeight.SemiBold)
+                    SettingToggle("Show timer name", d.showBarName) { c.submit(Command.Edit(d.copy(showBarName = it))) }
+                    SettingToggle("Rotate text around bar", d.rotateBarText) { c.submit(Command.Edit(d.copy(rotateBarText = it))) }
+                }
+                HaloCard {
+                    Text("Completion screen", fontWeight = FontWeight.SemiBold)
+                    SettingToggle("Expand timer color", prefs.completionEnabled) { c.scope.launch { c.preferences.completionEnabled(it) } }
+                    if(prefs.completionEnabled) {
+                        Text("Display for ${prefs.completionSeconds} seconds")
+                        Slider(prefs.completionSeconds.toFloat(), { c.scope.launch { c.preferences.completionSeconds(it.toInt()) } }, valueRange = 1f..30f, steps = 28,
+                            modifier = Modifier.semantics { contentDescription = "Completion screen duration" })
+                        Text("Text size · ${prefs.completionTextSp} sp")
+                        Slider(prefs.completionTextSp.toFloat(), { c.scope.launch { c.preferences.completionTextSp(it.toInt()) } }, valueRange = 18f..48f, steps = 29,
+                            modifier = Modifier.semantics { contentDescription = "Completion text size" })
+                        SettingToggle("Bold completion text", prefs.completionBold) { c.scope.launch { c.preferences.completionBold(it) } }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Left", "Center").forEach { alignment ->
+                                FilterChip(prefs.completionAlignment == alignment, { c.scope.launch { c.preferences.completionAlignment(alignment) } }, { Text(alignment) })
+                            }
+                        }
+                        Text("Timer is completed for\n${d.name}", fontSize = prefs.completionTextSp.sp,
+                            fontWeight = if(prefs.completionBold) FontWeight.Bold else FontWeight.Normal,
+                            textAlign = if(prefs.completionAlignment == "Left") TextAlign.Start else TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth())
+                        Text("Tap the completion screen to close it early.", fontSize = 12.sp, color = scheme.onSurfaceVariant)
+                    }
+                }
+                HaloCard {
                     Text("Controls", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Volume buttons in Halo", prefs.volume) { c.scope.launch { c.preferences.volume(it) } }
                     if (prefs.volume) Text("${d.name} · 30s → 1m → 5m while held", color = scheme.onSurfaceVariant, fontSize = 13.sp)
@@ -298,7 +326,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  0.1 ALPHA 06", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  0.1 ALPHA 07", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }

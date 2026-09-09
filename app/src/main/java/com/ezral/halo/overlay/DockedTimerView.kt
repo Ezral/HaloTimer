@@ -21,7 +21,7 @@ class DockedTimerView(context: Context) : View(context) {
     private val digits=resources.getFont(com.ezral.halo.R.font.jetbrains_mono_regular)
     private val labelFont=resources.getFont(com.ezral.halo.R.font.poppins_bold)
     private val textPaint=android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface=labelFont; textSize=15*d }
-    private var sourceLabel=""; private var cachedLabel=""; private var labelWidth=0f
+    private val contourLabel=ContourLabel(textPaint)
     private val born=SystemClock.elapsedRealtime()
     internal fun currentShape(): MorphShape {
         val side=track?.definition?.dock ?: DockSide.LEFT
@@ -60,30 +60,31 @@ class DockedTimerView(context: Context) : View(context) {
         val spacing=ink.height()+6*d; val baseline=cy-(ink.top+ink.bottom)/2f
         canvas.drawText(parts[0],textX,baseline-spacing/2,paint)
         canvas.drawText(parts[1],textX,baseline+spacing/2,paint)
-        // The implied circle sits 22dp behind the edge, with its label outside the solid body.
-        val dockCx=edge+(if(left) -22 else 22)*d
-        val orbitCx=dockCx+(cx-dockCx)*blend; val radius=(76-17*blend)*d
-        val source=t.overlayLabel()
-        if(source!=sourceLabel) {
-            sourceLabel=source
-            // Stable glyph size and string across dock/full-circle transitions.
-            cachedLabel=android.text.TextUtils.ellipsize(source,textPaint,170*d,android.text.TextUtils.TruncateAt.END).toString()
-            labelWidth=textPaint.measureText(cachedLabel)
+        textPaint.color=HaloGlass.color(t.definition.color.toInt())
+        labelPath.reset()
+        val circle=fullCircle || blend>=.98f
+        if(circle) labelPath.addCircle(cx,cy,59*d,Path.Direction.CW)
+        else {
+            // The baseline follows the approved shallow convex outline, 10dp outside it.
+            // Extend the ends behind the real screen edge; glyphs disappear only by clipping.
+            val behind=edge+(if(left) -24 else 24)*d
+            val tip=edge+(if(left) 54 else -54)*d
+            val h=92*d
+            if(left) {
+                labelPath.moveTo(behind,cy-h)
+                labelPath.cubicTo(edge,cy-h*.95f,tip,cy-h*.52f,tip,cy)
+                labelPath.cubicTo(tip,cy+h*.52f,edge,cy+h*.95f,behind,cy+h)
+            } else {
+                labelPath.moveTo(behind,cy+h)
+                labelPath.cubicTo(edge,cy+h*.95f,tip,cy+h*.52f,tip,cy)
+                labelPath.cubicTo(tip,cy-h*.52f,edge,cy-h*.95f,behind,cy-h)
+            }
         }
-        val halfSpan=acos(((if(left) edge-orbitCx else orbitCx-edge)/(radius-textPaint.ascent())).coerceIn(-1f,1f)).toDouble()
-        val center=if(left) 0.0 else Math.PI
-        val labelAngle=labelWidth/radius.toDouble()
-        val radians=if(reducedMotion) center-labelAngle/2 else if(fullCircle || blend>=1f)
-            LabelOrbit.fullRadians(now-born) else LabelOrbit.dockedRadians(now-born,center-halfSpan,halfSpan*2,labelAngle)
-        paint.typeface=labelFont; paint.textSize=15*d; paint.textAlign=Paint.Align.LEFT
-        paint.color=HaloGlass.color(t.definition.color.toInt())
-        labelPath.reset(); labelPath.addCircle(orbitCx,cy,radius,Path.Direction.CW)
-        // Clip in display coordinates before rotation. The glyphs keep their full opacity/scale.
         canvas.save()
         canvas.clipRect(-location[0].toFloat(),-location[1].toFloat(),
             (resources.displayMetrics.widthPixels-location[0]).toFloat(),(resources.displayMetrics.heightPixels-location[1]).toFloat())
-        canvas.rotate(Math.toDegrees(radians).toFloat(),orbitCx,cy)
-        canvas.drawTextOnPath(cachedLabel,labelPath,0f,0f,paint)
+        contourLabel.draw(canvas,labelPath,t.overlayLabel(),if(circle) (now-born)%6000 else now-born,
+            if(circle) (2*Math.PI*59*d/6).toFloat() else 52*d,circle,reducedMotion,170*d)
         canvas.restore()
         if(isAttachedToWindow && !reducedMotion) postInvalidateOnAnimation()
     }

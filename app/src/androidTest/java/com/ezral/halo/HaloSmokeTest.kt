@@ -335,6 +335,7 @@ class HaloSmokeTest {
     @Test(timeout = 180_000) fun nativeEditorThemesAndRuntime() = try {
         if (android.os.Build.VERSION.SDK_INT >= 33) InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission("com.ezral.halo.debug", android.Manifest.permission.POST_NOTIFICATIONS)
         rule.waitUntil(10_000) { (activity.application as HaloApplication).coordinator.ready.value }
+        runBlocking { (activity.application as HaloApplication).coordinator.preferences.completionEnabled(false) }
         val launcherError = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
             ?.findAccessibilityNodeInfosByText("Quickstep isn't responding")?.isNotEmpty() == true
         if (launcherError) shell("am force-stop com.android.launcher3")

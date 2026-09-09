@@ -78,7 +78,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             }
         }
     }
-    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var color: Long? = null)
+    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var color: Long? = null, val name: TextView? = null, val barOptions: Pair<Boolean,Boolean> = true to false, var drag: DragSurfaceView? = null)
     private data class Morph(val view: DockMorphView, val target: Control)
     private val morphs = mutableMapOf<Int, Morph>()
     private val retiring = mutableSetOf<Control>()
@@ -93,7 +93,11 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             window.attributes = window.attributes.apply { alpha = 1f; flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv() }
         }
     }
+    private fun clearDrag(control:Control) {
+        control.drag?.let { runCatching { wm.removeView(it) } };control.drag=null
+    }
     private fun shape(control: Control): MorphShape {
+        control.drag?.let { return it.currentShape() }
         val location = IntArray(2); control.view.getLocationOnScreen(location)
         val bounds = RectF(location[0].toFloat(), location[1].toFloat(),
             (location[0] + control.view.width).toFloat(), (location[1] + control.view.height).toFloat())
@@ -113,17 +117,17 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     private fun replaceControl(id: Int, old: Control, track: Track, reduce: Boolean): Control {
         finishMorph(id)
         val next = createControl(track)
-        if (reduce) { old.dialog.dismiss(); return next }
+        if (reduce) { clearDrag(old); old.dialog.dismiss(); return next }
         retiring += old
         next.dialog.window!!.apply {
             attributes = attributes.apply { alpha = 0f; flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE }
         }
         next.view.post {
             if (controls[id] !== next || !next.view.isAttachedToWindow || OverlayVisibility.menuVisible) {
-                old.dialog.dismiss(); retiring -= old; return@post
+                clearDrag(old); old.dialog.dismiss(); retiring -= old; return@post
             }
             if (next.view.width == 0 || old.view.width == 0) {
-                old.dialog.dismiss(); retiring -= old; reveal(next); return@post
+                clearDrag(old); old.dialog.dismiss(); retiring -= old; reveal(next); return@post
             }
             val start = shape(old); val end = shape(next)
             val area = RectF(start.bounds).apply { union(end.bounds); inset(-dp(12).toFloat(), -dp(12).toFloat()) }
@@ -144,9 +148,48 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             try { wm.addView(view, params); morphs[id] = Morph(view, next) }
             catch (_: WindowManager.BadTokenException) { reveal(next) }
             catch (_: SecurityException) { reveal(next) }
-            old.dialog.dismiss(); retiring -= old
+            clearDrag(old); old.dialog.dismiss(); retiring -= old
         }
         return next
+    }
+    private var completion:CompletionView?=null
+    private var completionTrack:Int?=null
+    private val completedSessions=mutableMapOf<Int,String>()
+    private val completionQueue=ArrayDeque<Pair<Track,PointF>>()
+    private fun closeCompletion() {
+        completion?.let { runCatching { wm.removeView(it) } };completion=null;completionTrack=null
+    }
+    private fun updateCompletion(state:Snapshot,prefs:Preferences,now:Long) {
+        state.tracks.forEach { t ->
+            val session=t.session
+            if(session?.status==Status.COMPLETED && session.id!=completedSessions[t.definition.id]) {
+                completedSessions[t.definition.id]=session.id
+                if(prefs.completionEnabled && !OverlayVisibility.menuVisible && now-session.alertStartedAtMs in 0..10_000) {
+                    val origin=controls[t.definition.id]?.let { shape(it).text } ?: PointF(
+                        context.resources.displayMetrics.widthPixels*(if(t.definition.dock==DockSide.LEFT) 0f else if(t.definition.dock==DockSide.RIGHT) 1f else t.definition.x),
+                        context.resources.displayMetrics.heightPixels*t.definition.y)
+                    completionQueue.addLast(t to origin)
+                }
+            }
+        }
+        if(!prefs.completionEnabled || OverlayVisibility.menuVisible) { completionQueue.clear();closeCompletion();return }
+        completionQueue.removeAll { state.tracks[it.first.definition.id].session?.let { s -> s.id==it.first.session?.id && s.status==Status.COMPLETED } != true }
+        if(completionTrack?.let { state.tracks[it].session?.status!=Status.COMPLETED }==true) closeCompletion()
+        if(completion==null && completionQueue.isNotEmpty()) {
+            val (track,origin)=completionQueue.removeFirst()
+            val view=CompletionView(context,track,origin,prefs) { closeCompletion() }
+            val params=WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT).apply {
+                gravity=Gravity.TOP or Gravity.LEFT;title="Halo completion";alpha=1f
+                if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+                if(Build.VERSION.SDK_INT>=28) layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            try { wm.addView(view,params);completion=view;completionTrack=track.definition.id }
+            catch(_:SecurityException) { closeCompletion() }
+            catch(_:WindowManager.BadTokenException) { closeCompletion() }
+        }
     }
     private val controls = mutableMapOf<Int, Control>()
     private var previewId = 0
@@ -176,13 +219,13 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             val visible = if (OverlayVisibility.menuVisible) emptyMap() else tracks.filterNot { it.definition.hidden }.associateBy { it.definition.id }
             controls.keys.toList().filter { it !in visible }.forEach {
                 if (actionMenuTrack == it) closeActionMenu()
-                finishMorph(it); controls.remove(it)?.dialog?.dismiss()
+                finishMorph(it); controls.remove(it)?.let { old -> clearDrag(old);old.dialog.dismiss() }
             }
             visible.forEach { (id, t) ->
                 val previous = controls[id]
                 val control = when {
                     previous == null -> createControl(t)
-                    previous.dock != t.definition.dock -> {
+                    previous.dock != t.definition.dock || previous.barOptions != (t.definition.showBarName to t.definition.rotateBarText) -> {
                         if (actionMenuTrack == id) closeActionMenu()
                         replaceControl(id, previous, t, reduce)
                     }
@@ -197,10 +240,14 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         decorView.setPadding(0,0,0,0); decorView.elevation=0f
                         if(Build.VERSION.SDK_INT>=31) setBackgroundBlurRadius(0)
                     }
-                    (control.view as? LinearLayout)?.let { row ->
-                        for(i in 0 until row.childCount) (row.getChildAt(i) as? TextView)?.setTextColor(HaloGlass.foreground(t.definition.color.toInt()))
+                    fun recolor(view:View) {
+                        if(view is TextView) view.setTextColor(HaloGlass.foreground(t.definition.color.toInt()))
+                        if(view is ViewGroup) for(i in 0 until view.childCount) recolor(view.getChildAt(i))
                     }
+                    recolor(control.view)
                 }
+                (control.view as? FloatingBarLayout)?.apply { track=t;reducedMotion=reduce;invalidate() }
+                control.name?.text=t.definition.name
                 val s = t.session!!
                 control.info?.apply {
                     text = if (s.status == Status.COMPLETED) "00:00" else formatTime(s.remaining(now))
@@ -219,6 +266,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     invalidate()
                 }
             }
+            updateCompletion(state,preferences,now)
         } catch (_: SecurityException) { removeAll() }
         catch (_: WindowManager.BadTokenException) { removeAll() }
     }
@@ -245,16 +293,19 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setDimAmount(0f); window.decorView.setPadding(0, 0, 0, 0)
         dialog.setCancelable(false); dialog.setCanceledOnTouchOutside(false)
-        var info: TextView? = null; var play: TextView? = null
+        var info: TextView? = null; var play: TextView? = null; var name:TextView?=null
         val root: View
         if (dock != DockSide.NONE) {
             root = DockedTimerView(context).apply { this.track = track; isClickable = true; isFocusable = true }
             dialog.setContentView(root, ViewGroup.LayoutParams(dp(160), dp(192)))
         } else {
-            root = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(4), dp(2), dp(2), dp(2))
+            root = FloatingBarLayout(context).apply {
+                this.track=track;orientation=LinearLayout.VERTICAL
+                val orbit=if(track.definition.rotateBarText) 14 else 2
+                setPadding(dp(6),dp(orbit),dp(6),dp(orbit))
             }
+            val row=LinearLayout(context).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL }
+            root.addView(row)
             info = TextView(context).apply {
                 textSize = 20f; typeface = context.resources.getFont(R.font.jetbrains_mono_regular); gravity = Gravity.CENTER
                 text = formatTime(track.session?.remaining(SystemClock.elapsedRealtime()) ?: 0)
@@ -263,17 +314,25 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             }
             info.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
             val infoWidth = info.measuredWidth.coerceIn(dp(72), dp(96))
-            root.addView(info, LinearLayout.LayoutParams(infoWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
+            row.addView(info, LinearLayout.LayoutParams(infoWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
             fun button(label: String, description: String, action: () -> Unit): TextView {
                 val button = TextView(context).apply {
                     text = label; textSize = 22f; gravity = Gravity.CENTER; contentDescription = description
                     setTextColor(0xFF303644.toInt()); isFocusable = true; setOnClickListener { action() }
                 }
-                root.addView(button, LinearLayout.LayoutParams(dp(48), dp(48))); return button
+                row.addView(button, LinearLayout.LayoutParams(dp(48), dp(48))); return button
             }
             play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
             button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
             button("■", "Stop ${track.definition.name}") { stop(id) }
+            if(track.definition.showBarName) {
+                name=TextView(context).apply {
+                    text=track.definition.name;typeface=context.resources.getFont(R.font.poppins_semibold)
+                    textSize=11f;includeFontPadding=false;maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
+                    setPadding(dp(10),0,dp(10),dp(5))
+                }
+                root.addView(name,LinearLayout.LayoutParams(infoWidth+dp(144),LinearLayout.LayoutParams.WRAP_CONTENT))
+            }
             info.setOnClickListener { toggle(id) }
             dialog.setContentView(root)
         }
@@ -323,18 +382,33 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         p.x = (initialX + dx.toInt()).coerceIn(if (dock == DockSide.NONE) 0 else -width / 2, if (dock == DockSide.NONE) maxX else screen.widthPixels - width / 2)
                         p.y = (initialY + dy.toInt()).coerceIn(0, maxY)
                         window.attributes = p
-                        if(root is DockedTimerView) {
-                            val inward=if(dock==DockSide.LEFT) p.x+width/2 else screen.widthPixels-width/2-p.x
-                            root.pull=(inward.toFloat()/dp(80)).coerceIn(0f,1f)
-                            root.fullCircle=root.pull>=1f
-                            root.invalidate()
-                        } else {
-                            val nearLeft=p.x<maxX/2
-                            val distance=if(nearLeft) p.x else maxX-p.x
-                            (window.decorView.background as? GlassBackground)?.apply {
-                                side=if(nearLeft) DockSide.LEFT else DockSide.RIGHT
-                                approach=if(c.prefs.value.reducedMotion) 0f else (1-distance.toFloat()/dp(48)).coerceIn(0f,1f)
-                                invalidateSelf()
+                        val control=controls[id]
+                        if(control!=null) {
+                            var preview=control.drag
+                            if(preview==null) {
+                                preview=DragSurfaceView(context,c.state.value.tracks[id],dock!=DockSide.NONE,c.prefs.value.reducedMotion)
+                                val params=WindowManager.LayoutParams(screen.widthPixels,dp(224),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT).apply {
+                                    gravity=Gravity.TOP or Gravity.LEFT;title="Halo drag surface";alpha=1f
+                                    if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+                                }
+                                preview.setOnTouchListener { _,_->true }
+                                try {
+                                    wm.addView(preview,params);control.drag=preview
+                                    root.alpha=0f;window.setBackgroundDrawableResource(android.R.color.transparent)
+                                } catch(_:SecurityException) { preview=null }
+                                catch(_:WindowManager.BadTokenException) { preview=null }
+                            }
+                            preview?.let { surface ->
+                                val cy=p.y+height/2f
+                                val bounds=if(dock!=DockSide.NONE) RectF(p.x+width/2f-dp(48),cy-dp(48),p.x+width/2f+dp(48),cy+dp(48))
+                                    else RectF(p.x.toFloat(),p.y.toFloat(),(p.x+width).toFloat(),(p.y+height).toFloat())
+                                surface.windowY=(cy-dp(112)).toInt()
+                                val params=surface.layoutParams as WindowManager.LayoutParams
+                                params.y=surface.windowY;wm.updateViewLayout(surface,params)
+                                surface.position(bounds,screen.widthPixels)
                             }
                         }
                     }; true
@@ -347,36 +421,36 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         return@setOnTouchListener true
                     }
                     if (dragged) {
-                        if (dock != DockSide.NONE) {
-                            val inward = if (dock == DockSide.LEFT) event.rawX - downX else downX - event.rawX
-                            if (inward > dp(32)) expand(event.rawX / screen.widthPixels)
-                            else {
-                                val saved=c.state.value.tracks[id]
-                                val current=saved.copy(definition=saved.definition.copy(y=p.y.toFloat()/maxY.coerceAtLeast(1)))
-                                controls[id]?.let { old -> controls[id]=replaceControl(id,old,current,c.prefs.value.reducedMotion) }
-                                moveControl(Command.Move(id,current.definition.x,p.y.toFloat()/maxY.coerceAtLeast(1),dock))
+                        val old=controls[id]
+                        val side=old?.drag?.contact ?: DockSide.NONE
+                        val nx=if(side==DockSide.NONE && dock!=DockSide.NONE) event.rawX/screen.widthPixels else p.x.toFloat()/maxX.coerceAtLeast(1)
+                        c.scope.launch {
+                            c.execute(Command.Move(id,nx.coerceIn(0f,1f),p.y.toFloat()/maxY.coerceAtLeast(1),side))
+                            if(old!=null && controls[id]===old && !OverlayVisibility.menuVisible) {
+                                controls[id]=replaceControl(id,old,c.state.value.tracks[id],c.prefs.value.reducedMotion)
                             }
-                        } else {
-                            val side = when { p.x <= dp(16) -> DockSide.LEFT; p.x >= maxX - dp(16) -> DockSide.RIGHT; else -> DockSide.NONE }
-                            moveControl(Command.Move(id, p.x.toFloat() / maxX.coerceAtLeast(1), p.y.toFloat() / maxY.coerceAtLeast(1), side))
+                            render(c.state.value,c.prefs.value)
                         }
                     } else v.performClick()
                     true
                 }
-                MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(animated=true); (root as? DockedTimerView)?.apply { fullCircle=false; pull=0f; invalidate() }; p.x = initialX; p.y = initialY; window.attributes = p; true }
+                MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(animated=true); controls[id]?.let { clearDrag(it) };root.alpha=1f
+                    if(dock==DockSide.NONE) window.setBackgroundDrawable(GlassBackground(track.definition.color.toInt(),dp(28).toFloat()))
+                    (root as? DockedTimerView)?.apply { fullCircle=false; pull=0f; invalidate() }; p.x = initialX; p.y = initialY; window.attributes = p; true }
                 else -> false
             }
         }
         dialog.show()
         // The window remains non-modal and only its compact bounds receive touches.
-        return Control(dialog, root, dock, info, play)
+        return Control(dialog, root, dock, info, play, name=name,barOptions=track.definition.showBarName to track.definition.rotateBarText)
     }
     fun hideControls() {
+        completionQueue.clear();closeCompletion()
         closeActionMenu()
         exitingMenus.forEach { runCatching { wm.removeView(it) } }; exitingMenus.clear()
         morphs.keys.toList().forEach { finishMorph(it) }
         retiring.forEach { runCatching { it.dialog.dismiss() } }; retiring.clear()
-        controls.values.forEach { runCatching { it.dialog.dismiss() } }; controls.clear()
+        controls.values.forEach { clearDrag(it);runCatching { it.dialog.dismiss() } }; controls.clear()
     }
     fun removeAll() {
         edge?.let { runCatching { wm.removeView(it) } }; edge = null

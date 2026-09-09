@@ -12,8 +12,8 @@ android {
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 6
-        versionName = "0.1.0-alpha06"
+        versionCode = 7
+        versionName = "0.1.0-alpha07"
     }
     // CI explicitly uses the cached key; local Android Studio retains its usual debug identity.
     providers.environmentVariable("HALO_DEBUG_KEYSTORE").orNull?.let { path ->

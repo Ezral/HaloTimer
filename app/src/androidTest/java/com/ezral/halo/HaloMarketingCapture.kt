@@ -79,7 +79,7 @@ class HaloMarketingCapture {
         shell("am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false")
         shell("am broadcast -a com.android.systemui.demo -e command notifications -e visible false")
         command(Command.StopAll)
-        runBlocking { c.preferences.theme("Dark"); c.preferences.dismissAllOnMenu(false); c.preferences.motion(false) }
+        runBlocking { c.preferences.completionEnabled(false); c.preferences.theme("Dark"); c.preferences.dismissAllOnMenu(false); c.preferences.motion(false) }
         val names = listOf("Pour-over", "Tea", "Focus")
         val colors = listOf(0xFF8A2BE2L, 0xFF00B890L, 0xFFFF8C36L)
         (0..2).forEach { id -> command(Command.Activate(id, true)); command(Command.Edit(Definition(id, name = names[id], active = true,
