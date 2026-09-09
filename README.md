@@ -1,96 +1,156 @@
-# Halo Timer
+# HaloTimer · v1.0
 
-A native, quiet Android timer that keeps time in view while you use other apps.
+A quiet Android timer that stays with you while you use your phone.
 
-Halo has three independent timer tracks, named sequences, colored edge progress, translucent floating controls, and visual or Morse vibration alerts. Kotlin + Jetpack Compose; no WebView, account, ads, analytics SDK, or runtime network permission.
+HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-**Status: internal alpha, not a production-qualified release.** See [validation status](docs/validation/STATUS.md) before relying on background alerts. The [implementation plan](docs/HALO_ANDROID_IMPLEMENTATION_PLAN.md) remains the acceptance baseline.
+[Quick start](docs/QUICK_START.md) · [v1.0 notes](docs/releases/V1.0.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
-## Try it
+## Get started
 
-1. Open this project in Android Studio with JDK 17 and Android SDK 36.
-2. Select the `app` debug variant and run it on Android 8.0 or newer.
-3. Enable **Display over other apps** in Halo's Permissions card for the edge overlay. Notification and precise-alarm access are separately optional.
-4. Set a duration, or choose Sequence and add steps. Start a timer: Halo returns to the previous app or home, with the overlay running. Preview keeps settings open.
-5. Use the floating pause/play and reset controls, `⋮` for settings, or `×` to hide it. Drag to either edge to dock as a half-circle with stacked minutes/seconds and a rotating label; tap or drag inward to expand. Restore controls from Halo or the ongoing notification.
+1. Install the APK from a successful **Android** workflow's `halo-debug-apk` artifact. GitHub may require you to sign in to download it.
+2. Open Halo and enable **Display over other apps** in the Permissions card.
+3. Pick a timer tab, enter a duration and tap the top-right play icon.
+4. Halo returns to the previous app or home. Your timer stays visible over supported apps.
 
-Alternatively, download `halo-debug-apk` from a successful [Android CI run](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml). CI artifacts require a GitHub login. This APK uses debug signing and the separate package `com.ezral.halo.debug`.
+Requires **Android 8.0 or newer**. Version 1.0 is the product milestone; the downloadable APK still uses the existing development signing identity and `com.ezral.halo.debug` package. Store distribution and production signing are separate release tasks.
 
-## Build and check
+## Timers and sequences
+
+- **Three independent tracks.** Rename Timer A, B and C, switch between document-style tabs, and activate each track separately. Mix standalone timers and sequences in any combination.
+- **Whole-minute and whole-second controls.** Type, swipe vertically, scroll with a mouse, or use the accessible plus/minus actions. Seconds carry and borrow across minute boundaries: `00:59 ↔ 01:00`.
+- **Flexible duration.** Each timer or sequence step supports `00:01–99:59`. Quick presets set a single timer to 1, 5, 15 or 25 minutes.
+- **Named sequences.** Add up to 50 steps with independent names and durations. Halo advances automatically, shows the current step and resets that track's edge progress for each step.
+- **Editable examples.** Pour-over includes blooming and slow pouring. Steak includes searing, flipping, the fatty side and resting. Loading an example asks before replacing your current steps.
+- **Independent playback.** Pause, resume, stop or restart one timer while the others continue. Adjust a running timer by 30 seconds from its menu.
+- **Persistent configuration.** Timer definitions, positions, appearance choices and run checkpoints are stored locally. A running sequence uses a snapshot of its steps; stop/reset it before changing its structure.
+
+Timer names support 1–24 characters; step names support 1–60 characters.
+
+## Light around the display
+
+The halo uses full-display coordinates, including the status and navigation bar regions. Three 4dp colored tracks are separated by 2dp gaps. Supported Android versions provide physical corner radii for the light's path.
+
+Each track has its own color and glow strength. Choose from the palette—including bright red, strong blue and purple—or enter a custom `#RRGGBB` color. Palette colors already used by another active track are marked unavailable; use distinct custom colors to keep tracks easy to distinguish.
+
+When time is up, choose one of four continuous animations:
+
+| Alert | Appearance |
+| --- | --- |
+| Breathe | The light brightens and softens in a smooth cycle. |
+| Orbit | A light travels continuously around the display. |
+| Ping-pong | A light travels along the perimeter and reverses direction. |
+| Double pong | Two lights travel and bounce around the perimeter. |
+
+Final edge alerts continue until dismissed or stopped. **Preview edge alert** lets you try a style without starting a timer or leaving the menu. **Reduce motion** provides a quieter visual alternative.
+
+## Floating pill and edge dock
+
+The controls use one opaque, solid surface matching the timer's line color, without glass, gradients or outlines. Countdown digits use **JetBrains Mono** for fixed spacing; menu and label typography uses **Poppins**.
+
+The pill contains four icons:
+
+| Control | Action |
+| --- | --- |
+| Play / Pause | Start, pause or resume the selected timer, depending on its state. |
+| Reset arrow | Return to the beginning, paused and ready to start again. For a sequence, return to its first step. |
+| Stop square | End this timer, cancel its alerts and remove its floating control. |
+| Settings gear | Open the Halo menu on this timer's tab. |
+
+Drag the countdown area to move the pill. Contact with either screen edge starts a controlled merge animation before you lift your finger. Release to form a broad, shallow dock. Pull inward to separate it into a circle; while still holding, move to the opposite edge to dock again.
+
+The dock centers minutes above seconds. Its single bold label follows the dock's curved outline, with letters rotating along the path and clipping at the physical edge. A held full circle uses a continuous circular path. Sequence labels show **current step · timer name**; standalone labels show the timer name. Long labels are shortened to fit.
+
+Long-press the dock to reveal four evenly spaced action bubbles. Slide to Play/Pause, Reset, Stop or Settings and release to select. Release away from a target to cancel. The bubbles retract into the dock with a short exit animation.
+
+### Name and visibility options
+
+- **Show timer name:** display the name just outside the pill's bottom-left edge, in the pill's color.
+- **Move name around pill:** move that one label around the outside instead of holding it below the pill. This needs Show timer name enabled.
+- **Floating control:** show or hide the control for a track from its menu. This setting does not stop the timer or edge light; the pill itself has Stop instead of Hide.
+- **Show all floating controls:** restore controls from Halo or the ongoing notification.
+
+Entering the Halo menu hides floating controls. Timers normally continue; enable **Dismiss all timers on menu entry** if opening the menu should stop them all.
+
+## Vibration, including your own Morse text
+
+Choose **Off**, **Double tap** or **Morse** per timer. Morse text is entered in a popup; saving updates its dot-and-dash display automatically. Use A–Z, 0–9 and spaces, up to 24 characters and a maximum encoded pattern length of 20 seconds.
+
+Final-alert vibration supports:
+
+- Once, 3× or 5×.
+- Until dismiss.
+- A custom count of 1–99 repetitions.
+- A custom duration of 1–3600 seconds.
+
+These repeat settings apply to Morse as well as double taps. **Test vibration once** previews one cycle. Repeat choices also apply to sequence-step alerts, except Until dismiss becomes one cycle between steps so it cannot continue indefinitely into the next step. Simultaneous alerts share a serial vibration queue so their patterns do not overlap. Actual haptic output follows the phone's hardware and Android settings.
+
+## Color-expansion completion screen
+
+An optional full-screen color reveal expands from the pill or dock when the timer finishes. It displays **Timer is completed for**, followed by the timer name and final sequence step when applicable.
+
+In the **Completion screen** card, control:
+
+- Enable/disable with **Expand timer color**.
+- Display duration: **1–30 seconds** after expansion.
+- Text size: **18–48sp**.
+- Bold or regular text.
+- Left or center alignment.
+
+Tap the completion page to close it early. Closing it leaves the final edge alert active; use Stop or Dismiss to end that alert. A finished session does not repeatedly reopen the page.
+
+## Menu, themes and notifications
+
+The persistent header places selected-timer Play/Pause, Start all and Stop all icons at the top right. A soft shadow separates it from scrolling settings.
+
+Choose **Light**, **Dark** or **Follow system** in the bottom Appearance card. The floating surfaces retain each timer's solid color in every theme.
+
+Notifications are silent. The ongoing notification opens Halo and offers grouped Pause/Resume, Show controls and Stop all actions. Completion notifications include Dismiss. Private lock-screen content uses a generic public notification.
+
+Optional **Volume buttons in Halo** adjusts the selected timer while Halo has focus: 30-second steps, 1-minute steps after holding for 3 seconds, and 5-minute steps after 8 seconds. A hold ends after 15 seconds or when its target changes. This does not intercept volume keys while another app is active.
+
+## Permissions, timing and privacy
+
+| Access | Purpose |
+| --- | --- |
+| Display over other apps | Draw the edge light and floating controls over supported apps. |
+| Notifications | Show timer status and completion actions. |
+| Precise alarm access | Improve screen-off deadline delivery where Android permits it. |
+| Vibration | Play the selected haptic pattern. |
+
+Android can hide overlays on protected screens, and system windows can cover them. Full-display coordinates do not place Halo above every system surface. Screen-off delivery and very short sequence alerts during deep sleep depend on Android and manufacturer power management.
+
+Countdowns use monotonic deadlines rather than counting rendered frames. A delayed callback reconciles the logical sequence position without extending the sequence. Reboot or a user-requested app stop interrupts running sessions rather than silently starting them again.
+
+Halo has no account, ads, analytics SDK or runtime Internet permission. Data stays in the app's local Room database and DataStore preferences. The app does not use screen capture or request Accessibility access. Uninstalling clears its local data.
+
+## Build and development
+
+Use JDK 17 and Android SDK 36. The repository pins Gradle 8.13, Android Gradle Plugin 8.13.2 and Kotlin 2.2.21. Minimum SDK is 26; compile and target SDK are 36.
 
 ```sh
 ./gradlew :core:timer:test :app:lintDebug :app:assembleDebug
 ```
 
-The Gradle wrapper and dependency versions are pinned. JDK 17, Gradle 8.13, AGP 8.13.2, Kotlin 2.2.21, compile/target SDK 36, minimum SDK 26. Dependency downloads require access to Google Maven, Maven Central, and Gradle's distribution service.
+APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
+With an Android emulator or device attached:
 
-## Features
+```sh
+./gradlew :app:connectedDebugAndroidTest
+```
 
-- Three renameable tabs; activate independently; launch selected/all.
-- Single timers or up to 50 named steps, including editable pour-over and steak examples.
-- Whole minute/second fields with text, vertical drag, mouse wheel, and accessible ± actions. Seconds carry and borrow.
-- Current-step progress anchored to monotonic deadlines; pause, resume, adjust, reset, hide and rename preserve track independence.
-- Breathe, Orbit, Ping-pong and Double pong; per-track color and glow; reduced motion.
-- Silent notifications; vibration off, double tap, or validated A–Z/0–9 Morse, with a bounded serial haptic queue.
-- System/light/dark themes; rounded Halo styling and bundled Poppins typography.
-- Optional physical volume adjustment **while Halo is focused**: 30s, then 1m after 3s, then 5m after 8s. A hold ends after 15s or when the target changes.
-- Room checkpoints include definitions, immutable run snapshots and event outbox atomically; DataStore preferences. Reboot/user-requested stop interrupts a running session.
+CI reuses its development signing identity so compatible previous builds update in place. Android Studio may use a different local debug key. Release signing is not configured.
 
-## Boundaries of this alpha
+| Area | Location |
+| --- | --- |
+| Pure timer engine, sequence logic, Morse and JVM tests | `core/timer` |
+| Room checkpoints and preferences | `app/.../data` |
+| Coordinator, foreground service, alarms and haptics | `app/.../runtime` |
+| Edge renderer, pill, dock and completion screen | `app/.../overlay` |
+| Compose editor and themes | `app/.../ui` |
+| Design decisions and validation protocols | `docs/adr`, `docs/validation` |
 
-Global volume-key interception is deliberately not packaged: ordinary overlays cannot provide it, and an AccessibilityService needs a separate device and distribution gate. The app does not request Accessibility access.
+The v1.0 feature baseline passed 42 JVM tests, Android lint with zero errors, and native Android 15 gesture/playback/capture checks. Phone testing also informed the overlay revisions. This does not constitute certification across all devices; see [validation status](docs/validation/STATUS.md) and the [implementation plan](docs/HALO_ANDROID_IMPLEMENTATION_PLAN.md).
 
-Exact-alarm access does not guarantee every short sequence vibration during deep idle. A late callback reconciles the correct logical step without extending the sequence. Normal screens may support overlays; protected screens and system UI may hide or cover them. No permanent wake lock or security-setting workaround is used.
-
-Hardware touch safety, Samsung power behavior, 200% font scale, haptic feel and release performance have not yet been certified. Floating controls always use light glass, including in dark mode. Expanded pills use Android 12+ background blur when available; compact docks use a circular translucent tint and shadow; unsupported devices or power-saving states use a stronger translucent tint. No screen capture is used.
-
-## Structure
-
-- `core/timer`: pure, serializable state engine, Morse encoder and JVM tests.
-- `app/.../data`: atomic Room checkpoint and DataStore preferences.
-- `app/.../runtime`: serialized coordinator, service, alarms, notifications and haptic arbitration.
-- `app/.../overlay`: one decorative edge window and bounded control windows.
-- `app/.../ui`: native Compose editor and themes.
-- `docs/adr`: implementation decisions, tradeoffs and release gates.
-- `docs/validation`: acceptance mapping and reproducible device protocol.
-
-The provisional production application ID is `com.ezral.halo`; confirm ownership before signing a production build. Release signing is intentionally not configured. Do not distribute a debug key as a production identity.
-
-## Alpha 02 — phone feedback
-
-Start timer, Start all and Stop all live in a persistent top-right header.
-
-The decorative halo now uses full display coordinates, including the status and navigation bar regions, with a 2dp gap between 4dp tracks. On Android 12+, reported physical corner radii shape the border. Starting/resuming sends Halo to the background; preview stays in settings. System UI retains its normal z-order: opaque system surfaces can still cover a normal application overlay.
-
-The first alpha used an ephemeral CI debug signing key. Android may require a one-time uninstall of alpha 01 before installing this build; uninstalling clears local timers/settings. Subsequent CI builds cache the debug keystore within this review branch to support in-place development updates while that cache is retained. Production signing remains separate and unconfigured.
-
-
-## Alpha 03 — continuous alerts and controls
-
-Completion lighting continues until Dismiss, with smooth wrapping and pong turns. Vibration (including Morse) supports Once, 3×, 5×, Until dismiss, or a custom cycle count/duration. Parallel timer vibrations take turns; previews play once. Finite repeats do not resume after process loss.
-
-Opening Halo hides floating controls temporarily. Their backgrounds follow the chosen line color, and the dock has one larger bold rotating label with the current sequence step and timer name. The palette adds bright red, strong blue and purple; a custom hex dialog accepts any opaque RGB color. Header actions use icons, Morse editing opens a Save/Cancel popup, and appearance options live at the bottom.
-
-The floating pill is compact, with matching dark text/icons on light color-tinted glass. The dock centers MM/SS inside its visible half. Hold the dock, slide onto Play, Pause, Restart or Dismiss, then release; releasing elsewhere cancels. Restart returns to the first step and runs immediately. Dismiss stops that timer. Tap or pull inward to reveal the standard controls.
-
-The optional **Dismiss all timers on menu entry** setting defaults off. With it on, returning to Halo clears every running/paused/completed session and its alerts; timer definitions remain saved. Breathe uses a 4.8-second cycle with a gentle inhale and longer exhale, easing both line intensity and glow.
-
-Poppins is bundled under the SIL Open Font License; see `app/src/main/assets/licenses/Poppins-OFL.txt`. `.github/scripts/fetch-fonts.py` verifies the upstream font blobs against pinned hashes.
-
-
-## Alpha 04 — fluid controls
-
-The bar and dock share the same tint recipe. The bar shows only the countdown, with JetBrains Mono used for all in-app MM:SS digits; Poppins remains the menu typeface. Docking/undocking morphs the glass between the pill and its edge bubble. Long-press actions pop onto equal-angle points around the dock with no connecting lines. Reduced motion skips these transitions. The persistent menu header casts a soft shadow over scrolling cards.
-
-JetBrains Mono is bundled unchanged under OFL; its license is in `app/src/main/assets/licenses/JetBrainsMono-OFL.txt`.
-
-
-CI now explicitly points AGP at the cached development keystore. Earlier builds did not actually save that key, so Android may reject an in-place update from those APKs. A one-time uninstall clears local timers/settings; subsequent builds can update in place while the development-key cache is retained. Durable production signing is still a separate release task.
-
-### Alpha05 motion refinement
-
-Flat tinted floating surfaces with no circular progress border; compact Primary/Reset/Hide controls; faster vsync-driven dock labels with visible-arc looping; 240 ms docking morphs; live edge attachment while dragging; and retracting three-action dock menus. A full circle shown while pulling the dock uses the full orbit. Marketing recordings are now explicitly launched through the Marketing capture workflow, rather than every test edit.
-
-Alpha 06 revises the existing overlay: three playback/reset/stop icons, opaque timer-colored surfaces, a single shallow edge contour, controlled 220ms docking morphs, and circular text that passes fully behind the display edge before re-entering. Stop uses the existing persisted cancellation path, including alarms and repeating haptics. No timer scheduling, permission, editor or sequence architecture was rebuilt.
+Bundled Poppins and JetBrains Mono licenses are included in `app/src/main/assets/licenses/`.

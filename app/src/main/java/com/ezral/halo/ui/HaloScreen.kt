@@ -326,7 +326,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  0.1 ALPHA 07", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.0", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
