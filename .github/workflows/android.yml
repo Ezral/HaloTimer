@@ -80,6 +80,9 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          # The runner's deprecated swiftshader_indirect default crashes in the
+          # host RenderThread during IME/dialog transitions (kernel SIGSEGV).
+          emulator-options: -no-window -gpu lavapipe -no-snapshot -noaudio -no-boot-anim
           script: bash .github/scripts/native-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()
