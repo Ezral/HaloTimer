@@ -79,7 +79,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             }
         }
     }
-    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var color: Long? = null, val name: TextView? = null, val barOptions: Pair<Boolean,Boolean> = true to false, var drag: DragSurfaceView? = null)
+    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var color: Long? = null, val name: TextView? = null, val barOptions: Pair<Boolean,Boolean> = true to false, val hoursEnabled: Boolean = false, var drag: DragSurfaceView? = null)
     private data class Morph(val view: DockMorphView, val target: Control)
     private val morphs = mutableMapOf<Int, Morph>()
     private val retiring = mutableSetOf<Control>()
@@ -165,7 +165,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             if(session?.status==Status.COMPLETED && session.id!=completedSessions[t.definition.id]) {
                 completedSessions[t.definition.id]=session.id
                 if(prefs.completionEnabled && !OverlayVisibility.menuVisible && now-session.alertStartedAtMs in 0..10_000) {
-                    val origin=controls[t.definition.id]?.let { shape(it).text } ?: PointF(
+                    val origin=controls[t.definition.id]?.let { val body = shape(it).bounds; PointF(body.centerX(), body.centerY()) } ?: PointF(
                         context.resources.displayMetrics.widthPixels*(if(t.definition.dock==DockSide.LEFT) 0f else if(t.definition.dock==DockSide.RIGHT) 1f else t.definition.x),
                         context.resources.displayMetrics.heightPixels*t.definition.y)
                     completionQueue.addLast(t to origin)
@@ -225,7 +225,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 val previous = controls[id]
                 val control = when {
                     previous == null -> createControl(t)
-                    previous.dock != t.definition.dock || previous.barOptions != (t.definition.showBarName to t.definition.rotateBarText) -> {
+                    previous.hoursEnabled != t.definition.hoursEnabled || previous.dock != t.definition.dock || previous.barOptions != (t.definition.showBarName to t.definition.rotateBarText) -> {
                         if (actionMenuTrack == id) closeActionMenu()
                         replaceControl(id, previous, t, reduce)
                     }
@@ -249,19 +249,18 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 control.name?.text=t.definition.name
                 val s = t.session!!
                 control.info?.apply {
-                    text = if (s.status == Status.COMPLETED) "00:00" else formatTime(s.remaining(now))
+                    text = formatTime(s.remaining(now), t.definition.hoursEnabled)
                     setTextColor(HaloGlass.foreground(t.definition.color.toInt()))
                     typeface = context.resources.getFont(R.font.jetbrains_mono_regular)
-                    textSize = 20f
-                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Drag to an edge to dock."
+                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now), t.definition.hoursEnabled)}. Drag to an edge to dock."
                 }
                 control.play?.apply {
                     text = when(s.status) { Status.RUNNING -> "Ⅱ"; else -> "▶" }
                     contentDescription = "${when(s.status) { Status.RUNNING -> "Pause"; else -> "Play" }} ${t.definition.name}"
                 }
                 (control.view as? DockedTimerView)?.apply {
-                    track = t; reducedMotion = reduce
-                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Tap or drag inward to expand. Long press and slide for playback actions."
+                    track = t; reducedMotion = reduce || !preferences.dockTextMotion
+                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now), t.definition.hoursEnabled)}. Tap or drag inward to expand. Long press and slide for playback actions."
                     invalidate()
                 }
             }
@@ -310,12 +309,15 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             root.addView(row,LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,dp(56)))
             info = TextView(context).apply {
                 textSize = 20f; typeface = context.resources.getFont(R.font.jetbrains_mono_regular); gravity = Gravity.CENTER
-                text = formatTime(track.session?.remaining(SystemClock.elapsedRealtime()) ?: 0)
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false
+                text = formatTime(track.session?.remaining(SystemClock.elapsedRealtime()) ?: 0, track.definition.hoursEnabled)
+                maxLines = 1; includeFontPadding = false
+                setAutoSizeTextTypeUniformWithConfiguration(12, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
                 minHeight = dp(48); setPadding(dp(6), 0, dp(2), 0); setTextColor(0xFF222632.toInt()); isClickable = true
             }
             info.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-            val infoWidth = info.measuredWidth.coerceIn(dp(72), dp(96))
+            val orbitPadding = if(track.definition.showBarName && track.definition.rotateBarText) dp(52) else 0
+            val available = context.resources.displayMetrics.widthPixels - dp(208) - orbitPadding
+            val infoWidth = (if(track.definition.hoursEnabled) dp(116) else info.measuredWidth.coerceIn(dp(72), dp(96))).coerceAtMost(available.coerceAtLeast(dp(64)))
             row.addView(info, LinearLayout.LayoutParams(infoWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
             fun button(label: String, description: String, action: () -> Unit): TextView {
                 val button = TextView(context).apply {
@@ -383,7 +385,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                         if(control!=null) {
                             var preview=control.drag
                             if(preview==null) {
-                                preview=DragSurfaceView(context,c.state.value.tracks[id],dock!=DockSide.NONE,c.prefs.value.reducedMotion)
+                                preview=DragSurfaceView(context,c.state.value.tracks[id],dock!=DockSide.NONE,c.prefs.value.reducedMotion,c.prefs.value.dockTextMotion)
                                 val params=WindowManager.LayoutParams(screen.widthPixels,dp(224),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
@@ -447,7 +449,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         }
         dialog.show()
         // The window remains non-modal and only its compact bounds receive touches.
-        return Control(dialog, root, dock, info, play, name=name,barOptions=track.definition.showBarName to track.definition.rotateBarText)
+        return Control(dialog, root, dock, info, play, name=name,barOptions=track.definition.showBarName to track.definition.rotateBarText,hoursEnabled=track.definition.hoursEnabled)
     }
     fun hideControls() {
         completionQueue.clear();closeCompletion()

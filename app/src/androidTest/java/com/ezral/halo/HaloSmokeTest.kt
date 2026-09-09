@@ -276,7 +276,7 @@ class HaloSmokeTest {
         val c = (activity.application as HaloApplication).coordinator
         rule.onNodeWithText("Morse", substring = false).performScrollTo().performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.haptic == HapticStyle.MORSE }
-        rule.onNodeWithText("Edit", substring = false).performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Edit Morse text").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Morse input").performTextReplacement("!")
         rule.onNodeWithText("Save").assertIsNotEnabled()
         rule.onNodeWithContentDescription("Morse input").performTextReplacement("sos")
@@ -293,14 +293,14 @@ class HaloSmokeTest {
         rule.onNodeWithContentDescription("Vibration duration").performScrollTo().performTextReplacement("2")
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.repeatDurationMs == 2_000L }
         rule.onNodeWithText("Custom line color").performScrollTo().performClick()
-        rule.onNodeWithContentDescription("Custom color input").performTextReplacement("-FFFFF")
+        rule.onNodeWithContentDescription("Custom color input").performScrollTo().performTextReplacement("-FFFFF")
         rule.onNodeWithText("Save").assertIsNotEnabled()
-        rule.onNodeWithContentDescription("Custom color input").performTextReplacement("#FF2D2D")
+        rule.onNodeWithContentDescription("Custom color input").performScrollTo().performTextReplacement("#FF2D2D")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.color == 0xFFFF2D2DL }
         screenshot("10-custom-color")
-        rule.onNodeWithText("Off", substring = false).performScrollTo().performClick()
-        rule.waitUntil(5_000) { c.state.value.tracks[0].definition.haptic == HapticStyle.OFF }
+        rule.onNodeWithContentDescription("Vibration", useUnmergedTree = true).performScrollTo().performClick()
+        rule.waitUntil(5_000) { !c.state.value.tracks[0].definition.vibrates() }
     }
 
     private fun checkRealCompletion() {

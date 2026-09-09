@@ -33,15 +33,14 @@ internal class DockMorphView(context: Context, private val from: MorphShape, pri
         val dockMix=if(to.side!=DockSide.NONE) p else if(from.side!=DockSide.NONE) 1-p else 0f
         paint.textSize=(20-4*dockMix)*d
         val x=from.text.x+(to.text.x-from.text.x)*p; val y=from.text.y+(to.text.y-from.text.y)*p
-        val time=formatTime(track.session?.remaining(now) ?: 0)
+        val time=formatTime(track.session?.remaining(now) ?: 0, track.definition.hoursEnabled)
         paint.getTextBounds("0123456789",0,10,ink)
         val baseline=y-(ink.top+ink.bottom)/2f
         canvas.save(); canvas.clipPath(path)
         if(dockMix<.5f) canvas.drawText(time,x,baseline,paint)
         else {
             val parts=time.split(":"); val spacing=ink.height()+6*d
-            canvas.drawText(parts[0],x,baseline-spacing/2,paint)
-            canvas.drawText(parts[1],x,baseline+spacing/2,paint)
+            parts.forEachIndexed { index, part -> canvas.drawText(part,x,baseline+(index-(parts.size-1)/2f)*spacing,paint) }
         }
         canvas.restore()
         if(t<1 && isAttachedToWindow) postInvalidateOnAnimation()

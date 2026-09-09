@@ -11,7 +11,7 @@
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
         <service android:name=".runtime.HaloRuntimeService" android:exported="false" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started silent countdown timers with visible edge progress and floating controls over other apps" />
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started countdown timers with optional patterned alert tones, visible edge progress and floating controls over other apps" />
         </service>
         <receiver android:name=".runtime.AlarmReceiver" android:exported="false" />
         <receiver android:name=".runtime.RecoveryReceiver" android:exported="true">

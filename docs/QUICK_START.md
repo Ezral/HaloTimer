@@ -59,11 +59,11 @@ Set final-alert repeats to Once, 3×, 5×, Until dismiss, or Custom. Custom supp
 In **Floating pill**:
 
 - **Show timer name** puts the name below the pill's left edge.
-- **Move name around pill** animates the single label around its outside. Keep Show timer name enabled to see it.
+- **Text rotates around pill** animates the single label around its outside. Keep Show timer name enabled to see it.
 
-In **Completion screen**, enable **Expand timer color** for a color reveal at the end. Set its display duration, text size, bold style and alignment. Tap the completion page to close it early. Stop or Dismiss ends the remaining final alert.
+In **Completion screen**, enable **Expand timer color** for a color reveal at the end. Set its display duration, text size, bold style and alignment. On timeout or an early tap, the color contracts back toward the pill/dock. The menu preview wraps to fit text size, timer name and sequence step. Tap the completion page to close it early. Stop or Dismiss ends the remaining final alert.
 
-At the bottom, choose **Light**, **Dark** or **Follow system**. **Reduce motion** is in Controls.
+At the bottom, choose **Light**, **Dark** or **Follow system**. **Text motion on timer dock** is in Controls; turn it off to keep dock text still.
 
 ## Returning to the menu
 

@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -102,10 +103,11 @@ fun HaloScreen(
             val accent = Color(d.color)
             val scroll = rememberScrollState()
             var pendingPreset by remember { mutableStateOf<List<Step>?>(null) }
+            var editingName by remember(selected) { mutableStateOf(false) }
+            var nameDraft by remember(selected, d.name) { mutableStateOf(d.name) }
             var editingMorse by remember { mutableStateOf(false) }
             var morseDraft by remember(d.morse) { mutableStateOf(d.morse) }
             var customColor by remember { mutableStateOf(false) }
-            var colorDraft by remember(d.color) { mutableStateOf("#%06X".format(d.color and 0xFFFFFF)) }
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Column(Modifier.fillMaxWidth().zIndex(1f).shadow(12.dp, clip = false,
                     ambientColor = Color.Black.copy(alpha = .10f), spotColor = Color.Black.copy(alpha = .18f))
@@ -145,7 +147,7 @@ fun HaloScreen(
                                 Text(t.definition.name, maxLines = 2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             }
                             Text(if (t.definition.active) "Active" else "Inactive", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-                            if (t.session != null) Text(formatTime(t.session!!.remaining(now)), fontFamily = CountdownMono, fontSize = 12.sp)
+                            if (t.session != null) Text(formatTime(t.session!!.remaining(now), t.definition.hoursEnabled), fontFamily = CountdownMono, fontSize = 12.sp)
                         }
                     }
                 }
@@ -158,16 +160,18 @@ fun HaloScreen(
                 }
                 HaloCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CommitText(d.name, "Timer name", Modifier.weight(1f), enabled = ready, maxLength = 48) { c.submit(Command.Edit(d.copy(name = it.trim()))) }
+                        Text(d.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { nameDraft = d.name; editingName = true }, enabled = ready, modifier = Modifier.semantics { contentDescription = "Edit timer name" }) { Text("Edit") }
                         Switch(checked = d.active, onCheckedChange = { c.submit(Command.Activate(selected, it)) }, enabled = ready, modifier = Modifier.semantics { contentDescription = "${d.name} active" })
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(!d.sequence, { c.submit(Command.Edit(d.copy(sequence = false))) }, { Text("Single") }, enabled = editable && ready)
                         FilterChip(d.sequence, { c.submit(Command.Edit(d.copy(sequence = true))) }, { Text("Sequence") }, enabled = editable && ready)
                     }
+                    SettingToggle("Hours", d.hoursEnabled) { focus.clearFocus(); c.submit(Command.Edit(d.copy(hoursEnabled = it))) }
                     if (s != null) {
                         Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
-                        Text(formatTime(s.remaining(now)), fontFamily = CountdownMono, fontSize = 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        Text(formatTime(s.remaining(now), d.hoursEnabled), fontFamily = CountdownMono, fontSize = if (d.hoursEnabled) 36.sp else 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         if (s.steps.size > 1) Text("${s.index + 1} / ${s.steps.size}  ·  ${s.steps[s.index].name}", color = scheme.onSurfaceVariant)
                         LinearProgressIndicator(progress = { s.progress(now) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)
                         if (s.status == Status.RUNNING || s.status == Status.PAUSED) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -175,7 +179,7 @@ fun HaloScreen(
                             TextButton(onClick = { c.submit(Command.Adjust(c.target(selected), 30_000)) }) { Text("+ 30s") }
                         }
                     } else if (!d.sequence) {
-                        DurationEditor(d.durationMs, enabled = ready) { c.submit(Command.Edit(d.copy(durationMs = it))) }
+                        DurationEditor(d.durationMs, hoursEnabled = d.hoursEnabled, enabled = ready) { c.submit(Command.Edit(d.copy(durationMs = it))) }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             listOf(1, 5, 15, 25).forEach { minutes -> AssistChip(onClick = { c.submit(Command.Edit(d.copy(durationMs = minutes * 60_000L))) }, label = { Text("${minutes}m") }) }
                         }
@@ -191,11 +195,11 @@ fun HaloScreen(
                                     CommitText(step.name, "Step ${index + 1} name", Modifier.weight(1f), maxLength = 120) { name -> c.submit(Command.Edit(d.copy(steps = d.steps.toMutableList().apply { set(index, step.copy(name = name.trim())) }))) }
                                     TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = d.steps.filterIndexed { i, _ -> i != index }))) }, enabled = d.steps.size > 1) { Text("×", Modifier.semantics { contentDescription = "Remove step ${index + 1}" }) }
                                 }
-                                DurationEditor(step.durationMs, compact = true, onInteract = { selectedStep = index }) { ms -> c.submit(Command.Edit(d.copy(steps = d.steps.toMutableList().apply { set(index, step.copy(durationMs = ms)) }))) }
+                                DurationEditor(step.durationMs, hoursEnabled = d.hoursEnabled, compact = true, onInteract = { selectedStep = index }) { ms -> c.submit(Command.Edit(d.copy(steps = d.steps.toMutableList().apply { set(index, step.copy(durationMs = ms)) }))) }
                             }
                         }
                         TextButton(onClick = { c.submit(Command.Edit(d.copy(steps = d.steps + Step("Step ${d.steps.size + 1}", 60_000)))) }, enabled = d.steps.size < 50) { Text("+ Add timer") }
-                        Text("Total ${formatTime(d.steps.sumOf { it.durationMs })}", fontFamily = CountdownMono, color = scheme.onSurfaceVariant)
+                        Text("Total ${formatTime(d.steps.sumOf { it.durationMs }, d.hoursEnabled)}", fontFamily = CountdownMono, color = scheme.onSurfaceVariant)
                     }
                     if (s != null) OutlinedButton(onClick = { c.submit(Command.Reset(selected)) }, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(if (s.status == Status.COMPLETED) "Dismiss" else "Reset")
@@ -212,7 +216,7 @@ fun HaloScreen(
                             }
                         }
                     }
-                    OutlinedButton(onClick = { colorDraft = "#%06X".format(d.color and 0xFFFFFF); customColor = true }) { Text("Custom line color") }
+                    OutlinedButton(onClick = { customColor = true }) { Text("Custom line color") }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AlertStyle.entries.forEach { style -> FilterChip(d.alert == style, { c.submit(Command.Edit(d.copy(alert = style))) }, { Text(when (style) { AlertStyle.BREATHE -> "Breathe"; AlertStyle.ORBIT -> "Orbit"; AlertStyle.PING_PONG -> "Ping-pong"; AlertStyle.DOUBLE_PONG -> "Double pong" }) }) }
                     }
@@ -223,9 +227,12 @@ fun HaloScreen(
                     TextButton(onClick = { if (overlay) onPreview(selected) else onOverlayPermission() }) { Text("Preview edge alert") }
                 }
                 HaloCard {
-                    Text("Vibration", fontWeight = FontWeight.SemiBold)
+                    Text("Sound & vibration", fontWeight = FontWeight.SemiBold)
+                    SettingToggle("Vibration", d.vibrates()) { c.submit(Command.Edit(d.copy(vibrationEnabled = it, haptic = d.alertPattern()))) }
+                    SettingToggle("Sound", d.soundEnabled) { c.submit(Command.Edit(d.copy(soundEnabled = it))) }
+                    if (d.soundEnabled) Text("Soft tone · uses alarm volume", color = scheme.onSurfaceVariant, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HapticStyle.entries.forEach { style -> FilterChip(d.haptic == style, { c.submit(Command.Edit(d.copy(haptic = style))) }, { Text(when (style) { HapticStyle.OFF -> "Off"; HapticStyle.DOUBLE_TAP -> "Double tap"; HapticStyle.MORSE -> "Morse" }) }) }
+                        HapticStyle.entries.filterNot { it == HapticStyle.OFF }.forEach { style -> FilterChip(d.alertPattern() == style, { c.submit(Command.Edit(d.copy(haptic = style))) }, { Text(when (style) { HapticStyle.OFF -> "Off"; HapticStyle.DOUBLE_TAP -> "Double tap"; HapticStyle.MORSE -> "Morse" }) }) }
                     }
                     if (d.haptic == HapticStyle.MORSE) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -233,11 +240,11 @@ fun HaloScreen(
                                 Text(d.morse, fontWeight = FontWeight.SemiBold)
                                 Text(Morse.display(d.morse), fontFamily = Poppins, color = accent)
                             }
-                            TextButton(onClick = { morseDraft = d.morse; editingMorse = true }) { Text("Edit") }
+                            TextButton(onClick = { morseDraft = d.morse; editingMorse = true }, modifier = Modifier.semantics { contentDescription = "Edit Morse text" }) { Text("Edit") }
                         }
                         Text("${Morse.encode(d.morse).sumOf { it.ms } / 1000.0}s", color = scheme.onSurfaceVariant, fontSize = 12.sp)
                     }
-                    if (d.haptic != HapticStyle.OFF) {
+                    if (d.vibrates() || d.soundEnabled) {
                         Text("Repeat", color = scheme.onSurfaceVariant)
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             HapticRepeat.entries.filterNot { it == HapticRepeat.TIMED }.forEach { repeat ->
@@ -273,12 +280,13 @@ fun HaloScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                         }
                     }
-                    if (d.haptic != HapticStyle.OFF) TextButton(onClick = { c.haptics.preview(d) }) { Text("Test vibration once") }
+                    if (d.vibrates()) TextButton(onClick = { c.haptics.preview(d.copy(soundEnabled = false)) }) { Text("Test vibration once") }
+                    if (d.soundEnabled) TextButton(onClick = { c.haptics.preview(d.copy(vibrationEnabled = false)) }) { Text("Test sound once") }
                 }
                 HaloCard {
                     Text("Floating pill", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Show timer name", d.showBarName) { c.submit(Command.BarAppearance(d.id, showName = it)) }
-                    SettingToggle("Move name around pill", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
+                    SettingToggle("Text rotates around pill", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
                 }
                 HaloCard {
                     Text("Completion screen", fontWeight = FontWeight.SemiBold)
@@ -296,10 +304,16 @@ fun HaloScreen(
                                 FilterChip(prefs.completionAlignment == alignment, { c.scope.launch { c.preferences.completionAlignment(alignment) } }, { Text(alignment) })
                             }
                         }
-                        Text("Timer is completed for\n${d.name}", fontSize = prefs.completionTextSp.sp,
-                            fontWeight = if(prefs.completionBold) FontWeight.Bold else FontWeight.Normal,
-                            textAlign = if(prefs.completionAlignment == "Left") TextAlign.Start else TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth())
+                        val previewStep = if (d.sequence) (s?.steps?.getOrNull(s.index) ?: d.steps.getOrNull(selectedStep))?.name else null
+                        Box(Modifier.fillMaxWidth().animateContentSize().clip(RoundedCornerShape(20.dp)).background(accent).padding(18.dp)
+                            .semantics { contentDescription = "Completion text preview" }) {
+                            Text("Timer is completed for\n${d.name}" + (previewStep?.let { " · $it" } ?: ""),
+                                fontSize = prefs.completionTextSp.sp, lineHeight = (prefs.completionTextSp * 1.4f).sp,
+                                color = Color(com.ezral.halo.overlay.HaloGlass.foreground(d.color.toInt())),
+                                fontWeight = if(prefs.completionBold) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = if(prefs.completionAlignment == "Left") TextAlign.Start else TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth())
+                        }
                         Text("Tap the completion screen to close it early.", fontSize = 12.sp, color = scheme.onSurfaceVariant)
                     }
                 }
@@ -308,7 +322,7 @@ fun HaloScreen(
                     SettingToggle("Volume buttons in Halo", prefs.volume) { c.scope.launch { c.preferences.volume(it) } }
                     if (prefs.volume) Text("${d.name} · 30s → 1m → 5m while held", color = scheme.onSurfaceVariant, fontSize = 13.sp)
                     SettingToggle("Dismiss all timers on menu entry", prefs.dismissAllOnMenu) { c.scope.launch { c.preferences.dismissAllOnMenu(it) } }
-                    SettingToggle("Reduce motion", prefs.reducedMotion) { c.scope.launch { c.preferences.motion(it) } }
+                    SettingToggle("Text motion on timer dock", prefs.dockTextMotion) { c.scope.launch { c.preferences.dockTextMotion(it) } }
                     TextButton(onClick = { c.submit(Command.ShowAll); if (state.tracks.any { it.session?.status == Status.RUNNING }) onLaunch(-2) }) { Text("Show all floating controls") }
                 }
                 if (!overlay || !exact || !notifications) HaloCard {
@@ -326,7 +340,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  1.0", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.1", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
@@ -337,17 +351,16 @@ fun HaloScreen(
                     Morse.validate(morseDraft)?.let { Text(it, color = scheme.error, fontSize = 12.sp) }
                 }
             }, confirmButton = { TextButton(onClick = { c.submit(Command.Edit(d.copy(morse = Morse.normalize(morseDraft)))); editingMorse = false }, enabled = Morse.validate(morseDraft) == null) { Text("Save") } }, dismissButton = { TextButton(onClick = { editingMorse = false }) { Text("Cancel") } })
-            if (customColor) AlertDialog(onDismissRequest = { customColor = false }, title = { Text("Custom line color") }, text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(colorDraft, { if (it.length <= 7) colorDraft = it.uppercase() }, singleLine = true, label = { Text("Hex color") }, modifier = Modifier.semantics { contentDescription = "Custom color input" })
-                    parseLineColor(colorDraft)?.let { color -> Box(Modifier.fillMaxWidth().height(32.dp).background(Color(color), RoundedCornerShape(12.dp))) }
-                    Text("Example: #FF2D2D", color = scheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-            }, confirmButton = { TextButton(onClick = {
-                parseLineColor(colorDraft)?.let { parsed ->
-                    c.submit(Command.Edit(d.copy(color = parsed))); customColor = false
-                }
-            }, enabled = parseLineColor(colorDraft) != null) { Text("Save") } }, dismissButton = { TextButton(onClick = { customColor = false }) { Text("Cancel") } })
+            if (editingName) AlertDialog(onDismissRequest = { editingName = false }, title = { Text("Timer name") }, text = {
+                OutlinedTextField(nameDraft, { if (it.codePointCount(0, it.length) <= 24) nameDraft = it }, singleLine = true,
+                    label = { Text("Name") }, modifier = Modifier.semantics { contentDescription = "Timer name input" },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done))
+            }, confirmButton = { TextButton(onClick = { c.submit(Command.Edit(d.copy(name = nameDraft.trim()))); editingName = false },
+                enabled = nameDraft.isNotBlank()) { Text("Save") } }, dismissButton = { TextButton(onClick = { editingName = false }) { Text("Cancel") } })
+            if (customColor) LineColorPicker(d.color, onDismiss = { customColor = false }) { color ->
+                c.submit(Command.Edit(d.copy(color = color))); customColor = false
+            }
+
         }
     }
 }
@@ -380,18 +393,20 @@ private fun Modifier.selectableTab(selected: Boolean, description: String, actio
 }
 
 @Composable
-private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boolean = true, onInteract: () -> Unit = {}, changed: (Long) -> Unit) {
+private fun DurationEditor(value: Long, hoursEnabled: Boolean = false, compact: Boolean = false, enabled: Boolean = true, onInteract: () -> Unit = {}, changed: (Long) -> Unit) {
     val latestValue by rememberUpdatedState(value)
     val latestChanged by rememberUpdatedState(changed)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        listOf(true, false).forEach { minute ->
-            if (!minute) Text(":", fontFamily = CountdownMono, fontSize = if (compact) 32.sp else 52.sp, modifier = Modifier.padding(bottom = 20.dp))
-            val number = if (minute) value / 60_000 else value / 1000 % 60
+        val units = if (hoursEnabled) listOf(3_600_000L, 60_000L, 1_000L) else listOf(60_000L, 1_000L)
+        units.forEachIndexed { fieldIndex, unit ->
+            val minute = unit == 60_000L
+            val label = when (unit) { 3_600_000L -> "Hours"; 60_000L -> "Minutes"; else -> "Seconds" }
+            if (fieldIndex > 0) Text(":", fontFamily = CountdownMono, fontSize = if (hoursEnabled || compact) 28.sp else 52.sp, modifier = Modifier.padding(bottom = 20.dp))
+            val number = when (unit) { 3_600_000L -> value / unit; 60_000L -> if (hoursEnabled) value / unit % 60 else value / unit; else -> value / 1000 % 60 }
             var draft by remember(number) { mutableStateOf("%02d".format(number)) }
             var focused by remember { mutableStateOf(false) }
             val focus = LocalFocusManager.current
-            val unit = if (minute) 60_000L else 1_000L
-            fun change(delta: Long) { onInteract(); latestChanged((latestValue + delta).coerceIn(MIN_MS, MAX_MS)) }
+            fun change(delta: Long) { onInteract(); latestChanged((latestValue + delta).coerceIn(MIN_MS, if (hoursEnabled) MAX_HOURS_MS else MAX_MS)) }
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 BasicTextField(draft, { if (it.length <= 2 && it.all(Char::isDigit)) draft = it },
                     Modifier.fillMaxWidth().heightIn(min = 64.dp)
@@ -399,11 +414,11 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
                             if (it.isFocused) onInteract()
                             if (focused && !it.isFocused) {
                                 val n = draft.toLongOrNull()
-                                if (n != null) latestChanged((if (minute) n * 60_000 + latestValue % 60_000 else latestValue / 60_000 * 60_000 + n * 1_000).coerceIn(MIN_MS, MAX_MS))
+                                if (n != null) latestChanged(replaceTimeField(latestValue, unit, n, hoursEnabled))
                                 else draft = "%02d".format(number)
                             }; focused = it.isFocused
                         }
-                        .pointerInput(minute, enabled) {
+                        .pointerInput(unit, enabled, hoursEnabled) {
                             var dragRemainder = 0f
                             if (enabled) detectVerticalDragGestures(onDragStart = { dragRemainder = 0f; focus.clearFocus(); onInteract() }) { changeEvent, amount ->
                                 changeEvent.consume()
@@ -415,7 +430,7 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
                                 }
                             }
                         }
-                        .pointerInput(minute, enabled) { if (enabled) awaitPointerEventScope { while (true) {
+                        .pointerInput(unit, enabled, hoursEnabled) { if (enabled) awaitPointerEventScope { while (true) {
                             val event = awaitPointerEvent()
                             if (event.type == PointerEventType.Scroll) {
                                 val dy = event.changes.first().scrollDelta.y
@@ -423,16 +438,14 @@ private fun DurationEditor(value: Long, compact: Boolean = false, enabled: Boole
                             }
                         } } }
                         .semantics {
-                            contentDescription = if (minute) "Minutes" else "Seconds"
+                            contentDescription = label
                             customActions = listOf(CustomAccessibilityAction("Increase") { change(unit); true }, CustomAccessibilityAction("Decrease") { change(-unit); true })
                         }, enabled = enabled, singleLine = true,
-                    textStyle = TextStyle(fontFamily = CountdownMono, fontSize = if (compact) 36.sp else 58.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
+                    textStyle = TextStyle(fontFamily = CountdownMono, fontSize = if (hoursEnabled) (if (compact) 27.sp else 34.sp) else if (compact) 36.sp else 58.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }))
-                Text(if (minute) "MIN" else "SEC", fontSize = 10.sp, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row { TextButton(onClick = { change(-unit) }, enabled = enabled) { Text("−", Modifier.semantics { contentDescription = "Decrease ${if (minute) "minutes" else "seconds"}" }) }; TextButton(onClick = { change(unit) }, enabled = enabled) { Text("+", Modifier.semantics { contentDescription = "Increase ${if (minute) "minutes" else "seconds"}" }) } }
+                Text(when (unit) { 3_600_000L -> "HRS"; 60_000L -> "MIN"; else -> "SEC" }, fontSize = 10.sp, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row { TextButton(onClick = { change(-unit) }, enabled = enabled, modifier = Modifier.weight(1f), contentPadding = PaddingValues(0.dp)) { Text("−", Modifier.semantics { contentDescription = "Decrease ${label.lowercase()}" }) }; TextButton(onClick = { change(unit) }, enabled = enabled, modifier = Modifier.weight(1f), contentPadding = PaddingValues(0.dp)) { Text("+", Modifier.semantics { contentDescription = "Increase ${label.lowercase()}" }) } }
             }
         }
     }
 }
-
-private fun parseLineColor(text: String): Long? = text.removePrefix("#").takeIf { it.length == 6 && it.all { c -> c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F' } }?.toLongOrNull(16)?.let { it or 0xFF000000L }

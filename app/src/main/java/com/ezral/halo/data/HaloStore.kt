@@ -31,10 +31,11 @@ private val Context.settings by preferencesDataStore("halo_preferences")
 data class Preferences(val theme: String = "System", val reducedMotion: Boolean = false, val volume: Boolean = false, val dismissAllOnMenu: Boolean = false,
     val completionEnabled: Boolean = true, val completionSeconds: Int = 4,
     val completionTextSp: Int = 28, val completionBold: Boolean = true,
-    val completionAlignment: String = "Center")
+    val completionAlignment: String = "Center", val dockTextMotion: Boolean = true)
 class PreferenceStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val motionKey = booleanPreferencesKey("reduced_motion")
+    private val dockTextKey = booleanPreferencesKey("dock_text_motion")
     private val dismissKey = booleanPreferencesKey("dismiss_all_on_menu")
     private val volumeKey = booleanPreferencesKey("local_volume")
     private val completionKey = booleanPreferencesKey("completion_enabled")
@@ -42,15 +43,16 @@ class PreferenceStore(private val context: Context) {
     private val textSizeKey = intPreferencesKey("completion_text_sp")
     private val boldKey = booleanPreferencesKey("completion_bold")
     private val alignKey = stringPreferencesKey("completion_alignment")
-    val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", it[motionKey] ?: false, it[volumeKey] ?: false, it[dismissKey] ?: false,
+    val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", false, it[volumeKey] ?: false, it[dismissKey] ?: false,
         it[completionKey] ?: true, (it[secondsKey] ?: 4).coerceIn(1,30),
-        (it[textSizeKey] ?: 28).coerceIn(18,48), it[boldKey] ?: true, it[alignKey] ?: "Center") }
+        (it[textSizeKey] ?: 28).coerceIn(18,48), it[boldKey] ?: true, it[alignKey] ?: "Center", it[dockTextKey] ?: !(it[motionKey] ?: false)) }
     suspend fun completionEnabled(value: Boolean) { context.settings.edit { it[completionKey] = value } }
     suspend fun completionSeconds(value: Int) { context.settings.edit { it[secondsKey] = value.coerceIn(1,30) } }
     suspend fun completionTextSp(value: Int) { context.settings.edit { it[textSizeKey] = value.coerceIn(18,48) } }
     suspend fun completionBold(value: Boolean) { context.settings.edit { it[boldKey] = value } }
     suspend fun completionAlignment(value: String) { context.settings.edit { it[alignKey] = if(value == "Left") "Left" else "Center" } }
     suspend fun theme(value: String) { context.settings.edit { it[themeKey] = value } }
+    suspend fun dockTextMotion(value: Boolean) { context.settings.edit { it[dockTextKey] = value } }
     suspend fun motion(value: Boolean) { context.settings.edit { it[motionKey] = value } }
     suspend fun dismissAllOnMenu(value: Boolean) { context.settings.edit { it[dismissKey] = value } }
     suspend fun volume(value: Boolean) { context.settings.edit { it[volumeKey] = value } }

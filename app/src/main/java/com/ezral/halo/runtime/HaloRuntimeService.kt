@@ -50,9 +50,9 @@ class HaloRuntimeService : Service() {
             c.state.value.tracks.forEach { track ->
                 val s = track.session
                 val d = track.definition
-                if (d.active && s?.status == Status.COMPLETED && s.visualUntilMs > SystemClock.elapsedRealtime() && d.haptic != HapticStyle.OFF && d.hapticRepeat == HapticRepeat.UNTIL_DISMISS) {
+                if (d.active && s?.status == Status.COMPLETED && s.visualUntilMs > SystemClock.elapsedRealtime() && (d.vibrates() || d.soundEnabled) && d.hapticRepeat == HapticRepeat.UNTIL_DISMISS) {
                     c.haptics.enqueue(AlertEvent("${s.id}:${s.index}", d.id, SystemClock.elapsedRealtime(), true,
-                        d.haptic, d.morse, d.hapticRepeat, d.customRepeatCount, d.repeatDurationMs))
+                        d.alertPattern(), d.morse, d.hapticRepeat, d.customRepeatCount, d.repeatDurationMs, d.vibrates(), d.soundEnabled))
                 }
             }
             if (loop?.isActive != true) loop = scope.launch {

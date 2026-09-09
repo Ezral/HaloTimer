@@ -11,7 +11,7 @@ class HapticRepeats {
     val isEmpty get() = pending.isEmpty() && playing == null
     val hasRealAlert get() = playing?.event?.track?.let { it >= 0 } == true || pending.any { it.cycle.event.track >= 0 }
     fun enqueue(event: AlertEvent, now: Long) {
-        if (event.haptic == HapticStyle.OFF || event.id in seen) return
+        if ((!event.vibrationEnabled && !event.soundEnabled) || (event.haptic == HapticStyle.OFF && !event.soundEnabled) || event.id in seen) return
         if (event.haptic == HapticStyle.MORSE && Morse.validate(event.text) != null) return
         val wave = if (event.haptic == HapticStyle.MORSE) Morse.nativeTimings(Morse.encode(event.text)) else longArrayOf(0, 90, 110, 90)
         val repeat = if (!event.final && event.repeat == HapticRepeat.UNTIL_DISMISS) HapticRepeat.ONCE else event.repeat

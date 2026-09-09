@@ -60,7 +60,7 @@ class HaloFeatureCapture {
         waitFor { !c.state.value.tracks[0].definition.showBarName }
         rule.onNodeWithContentDescription("Show timer name").performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName }
-        rule.onNodeWithContentDescription("Move name around pill").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Text rotates around pill").performScrollTo().performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName && c.state.value.tracks[0].definition.rotateBarText }
         rule.onNodeWithText("Tap the completion screen to close it early.").performScrollTo()
         SystemClock.sleep(250);shot("20-completion-settings")
