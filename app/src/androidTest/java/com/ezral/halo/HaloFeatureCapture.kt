@@ -24,6 +24,7 @@ class HaloFeatureCapture {
     private val app get()=inst.targetContext.applicationContext as HaloApplication
     private val c get()=app.coordinator
     private lateinit var activity:MainActivity
+    private lateinit var launchIntent:android.content.Intent
     private fun shell(s:String)=ParcelFileDescriptor.AutoCloseInputStream(inst.uiAutomation.executeShellCommand(s)).bufferedReader().use { it.readText() }
     private fun waitFor(test:()->Boolean) { val end=SystemClock.elapsedRealtime()+8000;while(!test()) { check(SystemClock.elapsedRealtime()<end) { "Feature check timed out" };SystemClock.sleep(60) } }
     private fun command(cmd:Command)=runBlocking { withContext(Dispatchers.Main) { c.execute(cmd) } }
@@ -45,9 +46,11 @@ class HaloFeatureCapture {
         inst.runOnMainSync { app.stopService(android.content.Intent(app,HaloRuntimeService::class.java)) }
         (0..2).forEach { command(Command.Activate(it,it==0));command(Command.Edit(Definition(it))) }
         runBlocking { c.preferences.completionEnabled(false);c.preferences.completionSeconds(4);c.preferences.theme("System") }
+        // onNewIntent correctly changes the app intent; ActivityScenario matches its original intent.
+        inst.runOnMainSync { activity.intent=launchIntent;activity.finish() }
     }
     @Test(timeout=120_000) fun contourDragAndCompletionCapture() {
-        activity=rule.activity;waitFor { c.ready.value }
+        activity=rule.activity;launchIntent=android.content.Intent(activity.intent);waitFor { c.ready.value }
         inst.uiAutomation.grantRuntimePermission("com.ezral.halo.debug",android.Manifest.permission.POST_NOTIFICATIONS)
         shell("appops set com.ezral.halo.debug SYSTEM_ALERT_WINDOW allow");shell("mkdir -p /sdcard/Download/halo-qa")
         command(Command.StopAll)
@@ -100,7 +103,6 @@ class HaloFeatureCapture {
         shot("30-return-from-pill-settings")
         // Final sequence step triggers exactly one reveal, which expires without stopping the timer alert.
         command(Command.Reset(0))
-        shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")
         waitFor { activity.hasWindowFocus() }
         command(Command.Edit(c.state.value.tracks[0].definition.copy(sequence=true,steps=listOf(Step("Bloom",1000),Step("Slow pour",1000)),dock=DockSide.RIGHT)))
         command(Command.Start(setOf(0)))

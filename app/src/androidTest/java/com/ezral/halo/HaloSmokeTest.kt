@@ -29,13 +29,16 @@ class HaloSmokeTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
 
     private lateinit var activity: MainActivity
-    @Before fun captureActivityBeforeOverlaysAnimate() { activity = rule.activity }
+    private lateinit var launchIntent: android.content.Intent
+    @Before fun captureActivityBeforeOverlaysAnimate() { activity = rule.activity; launchIntent=android.content.Intent(activity.intent) }
 
     @After fun stopOverlaysBeforeEspressoTearDown() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as HaloApplication
         runBlocking { withContext(Dispatchers.Main) {
             app.coordinator.execute(Command.StopAll)
             app.stopService(android.content.Intent(app, com.ezral.halo.runtime.HaloRuntimeService::class.java))
+            // Restore the launch identity for ActivityScenario before ending its activity.
+            activity.intent=launchIntent;activity.finish()
         } }
     }
 
