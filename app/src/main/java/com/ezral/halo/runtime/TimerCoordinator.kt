@@ -66,9 +66,9 @@ class TimerCoordinator(private val context: Context) {
             // Reconcile on every semantic command; Tick only needs a reschedule on changes.
             if (next != old || command != Command.Tick) alarmScheduler.reconcile(next)
             old.tracks.zip(next.tracks).forEach { (before, after) ->
+                haptics.updateChannels(after.definition)
                 if (before.session?.id != after.session?.id || before.session?.index != after.session?.index ||
                     !after.definition.active || (!after.definition.vibrates() && !after.definition.soundEnabled) ||
-                    before.definition.soundEnabled != after.definition.soundEnabled || before.definition.vibrates() != after.definition.vibrates() ||
                     before.definition.haptic != after.definition.haptic || before.definition.morse != after.definition.morse || after.session?.status == Status.PAUSED) {
                     haptics.cancel(after.definition.id)
                 }

@@ -15,6 +15,16 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
     private val sound = PatternSound(context)
     private val repeats = HapticRepeats()
     private var worker: Job? = null
+    private var generation = 0L
+    private var playingTrack: Int? = null
+    private val channels = mutableMapOf<Int, Pair<Boolean, Boolean>>()
+    fun updateChannels(d: Definition) {
+        channels[d.id] = d.vibrates() to d.soundEnabled
+        if (playingTrack == d.id) {
+            if (!d.vibrates()) vibrator.cancel()
+            if (!d.soundEnabled) sound.stop()
+        }
+    }
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
     fun enqueue(event: AlertEvent) {
         if ((!event.soundEnabled && (!event.vibrationEnabled || event.haptic == HapticStyle.OFF || !vibrator.hasVibrator())) || repeats.contains(event.id)) return
@@ -25,15 +35,18 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
     }
     private fun start() {
         if (worker?.isActive == true || repeats.isEmpty) return
+        val token = ++generation
         worker = scope.launch {
             while (!repeats.isEmpty) {
                 val cycle = repeats.next(SystemClock.elapsedRealtime())
                 if (cycle == null) { delay(50); continue }
                 try {
-                    val samples = if (cycle.event.soundEnabled) withContext(Dispatchers.Default) { AlertTone.pcm(cycle.timings) } else null
+                    playingTrack = cycle.event.track
+                    val outputs = channels[cycle.event.track] ?: (cycle.event.vibrationEnabled to cycle.event.soundEnabled)
+                    val samples = if (outputs.second) withContext(Dispatchers.Default) { AlertTone.pcm(cycle.timings) } else null
                     // A failed sound output must not suppress the independent vibration output.
-                    if (samples != null) runCatching { sound.play(samples) }
-                    if (cycle.event.vibrationEnabled && cycle.event.haptic != HapticStyle.OFF && vibrator.hasVibrator()) {
+                    if (samples != null && (channels[cycle.event.track]?.second ?: cycle.event.soundEnabled)) runCatching { sound.play(samples) }
+                    if ((channels[cycle.event.track]?.first ?: cycle.event.vibrationEnabled) && cycle.event.haptic != HapticStyle.OFF && vibrator.hasVibrator()) {
                         runCatching { vibrator.vibrate(VibrationEffect.createWaveform(cycle.timings, -1), attributes) }
                     }
                     delay(cycle.timings.sum())
@@ -41,7 +54,7 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
                     repeats.finish(cycle, SystemClock.elapsedRealtime())
                 } catch (e: CancellationException) { throw e }
                 catch (_: RuntimeException) { repeats.cancel(cycle.event.track) }
-                finally { sound.stop() }
+                finally { if (token == generation) { playingTrack = null; sound.stop() } }
             }
         }
     }
@@ -53,8 +66,8 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
     }
     fun cancel(id: Int) {
         if (repeats.cancel(id)) {
-            worker?.cancel(); worker = null; vibrator.cancel(); sound.stop(); start()
+            generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop(); start()
         }
     }
-    fun cancelAll() { repeats.clear(); worker?.cancel(); worker = null; vibrator.cancel(); sound.stop() }
+    fun cancelAll() { repeats.clear(); generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop() }
 }

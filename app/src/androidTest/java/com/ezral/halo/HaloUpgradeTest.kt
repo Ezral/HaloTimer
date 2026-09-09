@@ -68,4 +68,27 @@ class HaloUpgradeTest {
         val large = rule.onNodeWithContentDescription("Completion text preview").fetchSemanticsNode().size.height
         assertTrue("Preview wraps and grows instead of cropping", large > small)
     }
+    @Test fun dockHourDigitsHaveThreeCenteredRows() {
+        rule.runOnUiThread {
+            val density = rule.activity.resources.displayMetrics.density
+            val view = com.ezral.halo.overlay.DockedTimerView(rule.activity)
+            view.layout(0, 0, (160*density).toInt(), (224*density).toInt())
+            view.track = Track(Definition(0, hoursEnabled = true, dock = DockSide.LEFT, color = 0xFF00FFFF),
+                Session("hours", listOf(Step(durationMs = 3_723_000)), status = Status.PAUSED, deadlineMs = 0))
+            val bitmap = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+            view.draw(android.graphics.Canvas(bitmap))
+            try {
+                val ink = com.ezral.halo.overlay.HaloGlass.foreground(0xFF00FFFF.toInt())
+                val rows = ((70*density).toInt()..(155*density).toInt()).filter { y ->
+                    ((8*density).toInt()..(36*density).toInt()).any { x -> bitmap.getPixel(x,y) == ink }
+                }
+                val groups = mutableListOf<MutableList<Int>>()
+                rows.forEach { y -> if (groups.isEmpty() || y > groups.last().last()+1) groups += mutableListOf(y) else groups.last() += y }
+                assertEquals("Hour, minute, second rows are separately readable", 3, groups.size)
+                val center = (groups.first().first()+groups.last().last())/2f
+                assertEquals("All three rows centered vertically", view.height/2f, center, 2*density)
+            } finally { bitmap.recycle() }
+        }
+    }
+
 }
