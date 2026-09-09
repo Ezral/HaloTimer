@@ -1,6 +1,14 @@
 name: Marketing capture
 on:
+  pull_request:
+    paths: [app/src/androidTest/java/com/ezral/halo/HaloFeatureCapture.kt]
   workflow_dispatch:
+    inputs:
+      capture:
+        description: Capture suite
+        type: choice
+        default: marketing
+        options: [marketing, features]
 permissions:
   contents: read
 jobs:
@@ -28,7 +36,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: bash .github/scripts/marketing-capture.sh
+          script: bash .github/scripts/marketing-capture.sh ${{ github.event_name == 'pull_request' && 'features' || inputs.capture }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
