@@ -40,7 +40,7 @@ internal object SurfaceContour {
             }
             return out.toFloatArray()
         }
-        val radius=minOf(bounds.width(),bounds.height())*(if(kotlin.math.abs(bounds.width()-bounds.height())<1f) .5f else .32f)
+        val radius=minOf(bounds.width(),bounds.height())*.5f
         val k=.5522848f;val out=mutableListOf(x,t)
         var px=x;var py=t
         fun cubic(a:Float,b:Float,c:Float,d:Float,e:Float,f:Float) { out.addAll(listOf(a,b,c,d,e,f));px=e;py=f }

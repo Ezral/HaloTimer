@@ -57,7 +57,7 @@ class HaloFeatureCapture {
         waitFor { !c.state.value.tracks[0].definition.showBarName }
         rule.onNodeWithContentDescription("Show timer name").performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName }
-        rule.onNodeWithContentDescription("Rotate text around bar").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Move name around pill").performScrollTo().performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName && c.state.value.tracks[0].definition.rotateBarText }
         rule.onNodeWithText("Tap the completion screen to close it early.").performScrollTo()
         SystemClock.sleep(250);shot("20-completion-settings")
@@ -94,6 +94,10 @@ class HaloFeatureCapture {
         command(Command.Move(0,.4f,.35f,DockSide.NONE));waitFor { node("Drag to an edge to dock")!=null };SystemClock.sleep(350)
         command(Command.Edit(c.state.value.tracks[0].definition.copy(rotateBarText=true)))
         SystemClock.sleep(2500);waitFor { !window("Halo surface transition") };shot("27-bar-perimeter-text")
+        node("Open Halo settings")!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        waitFor { activity.hasWindowFocus() && node("Drag to an edge to dock")==null }
+        assertEquals("Settings keeps the timer running",Status.RUNNING,c.state.value.tracks[0].session?.status)
+        shot("30-return-from-pill-settings")
         // Final sequence step triggers exactly one reveal, which expires without stopping the timer alert.
         command(Command.Reset(0))
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")

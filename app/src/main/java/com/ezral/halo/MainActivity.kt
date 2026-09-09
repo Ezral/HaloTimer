@@ -19,10 +19,12 @@ import com.ezral.halo.ui.HaloScreen
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
     private val c get() = (application as HaloApplication).coordinator
-    private var selected = 0
+    private var selected by androidx.compose.runtime.mutableIntStateOf(0)
     private var selectedStep = 0
     private val handler = Handler(Looper.getMainLooper())
     private var heldKey: Int? = null
@@ -56,6 +58,10 @@ class MainActivity : ComponentActivity() {
                 onAlarmPermission = { if (Build.VERSION.SDK_INT >= 31) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))) },
                 onNotificationPermission = { if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) })
         }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent);setIntent(intent);cancelHold()
+        selected=intent.getIntExtra("track",selected).coerceIn(0,2);selectedStep=0
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("selected", selected); super.onSaveInstanceState(outState) }
     private var menuEntry: Job? = null

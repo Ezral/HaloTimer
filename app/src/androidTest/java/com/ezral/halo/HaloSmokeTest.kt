@@ -175,7 +175,7 @@ class HaloSmokeTest {
         rule.waitUntil(5_000) { overlayNode("Drag to an edge to dock") != null }
         assertNotNull("Compact bar exposes Stop", overlayNode("Stop Timer A"))
         assertNull("Hide was removed", overlayNode("Hide Timer A"))
-        assertNull("No settings button in compact bar", overlayNode("Open Halo settings"))
+        assertNotNull("Pill exposes settings", overlayNode("Open Halo settings"))
         val bounds = android.graphics.Rect()
         overlayNode("Drag to an edge to dock")!!.getBoundsInScreen(bounds)
         shell("input swipe ${bounds.centerX()} ${bounds.centerY()} 0 ${bounds.centerY()} 600")
@@ -217,15 +217,22 @@ class HaloSmokeTest {
         val menuTop = (dockBounds.centerY() - 144 * density).coerceAtLeast(0f)
         fun arcX(degrees: Double) = (kotlin.math.cos(Math.toRadians(degrees)) * 108 * density).toFloat()
         fun arcY(degrees: Double) = menuTop + (144 + kotlin.math.sin(Math.toRadians(degrees)) * 108).toFloat() * density
-        dockGesture(arcX(-55.0), arcY(-55.0), true)
+        dockGesture(arcX(-67.5), arcY(-67.5), true)
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.PAUSED }
         // Releasing off the targets cancels without expanding or changing playback.
         dockGesture(160 * density, menuTop + 280 * density)
         assertEquals(Status.PAUSED, c.state.value.tracks[0].session?.status)
         assertEquals(DockSide.LEFT, c.state.value.tracks[0].definition.dock)
-        dockGesture(arcX(-55.0), arcY(-55.0))
+        dockGesture(arcX(-67.5), arcY(-67.5))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status == Status.RUNNING }
-        dockGesture(arcX(55.0), arcY(55.0))
+        dockGesture(arcX(67.5), arcY(67.5))
+        rule.waitUntil(5_000) { activity.hasWindowFocus() && overlayNode("Tap or drag inward to expand")==null }
+        assertEquals("Dock settings keeps the timer running",Status.RUNNING,c.state.value.tracks[0].session?.status)
+        shell("input keyevent 3")
+        rule.waitUntil(5_000) { !activity.hasWindowFocus() && overlayNode("Tap or drag inward to expand")!=null }
+        SystemClock.sleep(400)
+        overlayNode("Tap or drag inward to expand")!!.getBoundsInScreen(dockBounds)
+        dockGesture(arcX(22.5), arcY(22.5))
         rule.waitUntil(5_000) { c.state.value.tracks[0].session == null && overlayNode("Tap or drag inward to expand")==null }
         restartTimerAFromMenu()
         rule.waitUntil(5_000) { c.state.value.tracks[0].session?.status==Status.RUNNING && overlayNode("Tap or drag inward to expand")!=null }

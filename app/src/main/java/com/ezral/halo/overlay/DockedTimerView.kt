@@ -64,22 +64,7 @@ class DockedTimerView(context: Context) : View(context) {
         labelPath.reset()
         val circle=fullCircle || blend>=.98f
         if(circle) labelPath.addCircle(cx,cy,59*d,Path.Direction.CW)
-        else {
-            // The baseline follows the approved shallow convex outline, 10dp outside it.
-            // Extend the ends behind the real screen edge; glyphs disappear only by clipping.
-            val behind=edge+(if(left) -24 else 24)*d
-            val tip=edge+(if(left) 54 else -54)*d
-            val h=92*d
-            if(left) {
-                labelPath.moveTo(behind,cy-h)
-                labelPath.cubicTo(edge,cy-h*.95f,tip,cy-h*.52f,tip,cy)
-                labelPath.cubicTo(tip,cy+h*.52f,edge,cy+h*.95f,behind,cy+h)
-            } else {
-                labelPath.moveTo(behind,cy+h)
-                labelPath.cubicTo(edge,cy+h*.95f,tip,cy+h*.52f,tip,cy)
-                labelPath.cubicTo(tip,cy-h*.52f,edge,cy-h*.95f,behind,cy-h)
-            }
-        }
+        else DockLabelPath.build(labelPath,edge,cy,d,t.definition.dock)
         canvas.save()
         canvas.clipRect(-location[0].toFloat(),-location[1].toFloat(),
             (resources.displayMetrics.widthPixels-location[0]).toFloat(),(resources.displayMetrics.heightPixels-location[1]).toFloat())

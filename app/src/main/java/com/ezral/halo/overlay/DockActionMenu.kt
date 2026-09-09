@@ -9,10 +9,10 @@ import com.ezral.halo.core.DockSide
 import com.ezral.halo.core.Status
 import kotlin.math.*
 
-/** Three equally spaced bubbles; release retracts them along the same paths into the dock. */
+/** Four equally spaced bubbles; release retracts them along the same paths into the dock. */
 class DockActionMenu(context: Context, private val side: DockSide, private val color: Int,
     private val reducedMotion: Boolean = false, private val status: Status = Status.RUNNING) : View(context) {
-    enum class Action { PRIMARY, RESET, STOP }
+    enum class Action { PRIMARY, RESET, STOP, SETTINGS }
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val font = resources.getFont(R.font.poppins_medium)
@@ -23,7 +23,7 @@ class DockActionMenu(context: Context, private val side: DockSide, private val c
         private set
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
     private fun center(action: Action): PointF {
-        val angle = Math.toRadians(-55.0 + action.ordinal*55)
+        val angle = Math.toRadians(-67.5 + action.ordinal*45)
         val x = (cos(angle)*108).toFloat()
         return PointF((if(side==DockSide.LEFT) x else 168-x)*d,(144+sin(angle).toFloat()*108)*d)
     }
@@ -53,7 +53,7 @@ class DockActionMenu(context: Context, private val side: DockSide, private val c
             canvas.drawCircle(0f,0f,(if(selected==action) 31 else 28)*d,paint)
             paint.color=HaloGlass.foreground(color)
             paint.textAlign=Paint.Align.CENTER; paint.typeface=Typeface.DEFAULT; paint.textSize=23*d
-            val icon=when(action) { Action.PRIMARY -> if(status==Status.RUNNING) "Ⅱ" else "▶"; Action.RESET -> "↺"; Action.STOP -> "■" }
+            val icon=when(action) { Action.PRIMARY -> if(status==Status.RUNNING) "Ⅱ" else "▶"; Action.RESET -> "↺"; Action.STOP -> "■"; Action.SETTINGS -> "⚙︎" }
             val baseline=-(paint.fontMetrics.ascent+paint.fontMetrics.descent)/2
             canvas.drawText(icon,0f,baseline,paint); canvas.restore()
         }

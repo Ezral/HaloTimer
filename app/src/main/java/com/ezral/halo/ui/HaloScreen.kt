@@ -63,7 +63,7 @@ fun HaloScreen(
     val prefs by c.prefs.collectAsStateWithLifecycle()
     val ready by c.ready.collectAsStateWithLifecycle()
     val error by c.error.collectAsStateWithLifecycle()
-    var selected by rememberSaveable { mutableIntStateOf(initialSelected.coerceIn(0, 2)) }
+    var selected by rememberSaveable(initialSelected) { mutableIntStateOf(initialSelected.coerceIn(0, 2)) }
     var selectedStep by rememberSaveable(selected) { mutableIntStateOf(0) }
     var permissionRevision by remember { mutableIntStateOf(0) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -276,9 +276,9 @@ fun HaloScreen(
                     if (d.haptic != HapticStyle.OFF) TextButton(onClick = { c.haptics.preview(d) }) { Text("Test vibration once") }
                 }
                 HaloCard {
-                    Text("Floating bar", fontWeight = FontWeight.SemiBold)
+                    Text("Floating pill", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Show timer name", d.showBarName) { c.submit(Command.BarAppearance(d.id, showName = it)) }
-                    SettingToggle("Rotate text around bar", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
+                    SettingToggle("Move name around pill", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
                 }
                 HaloCard {
                     Text("Completion screen", fontWeight = FontWeight.SemiBold)

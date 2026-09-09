@@ -74,6 +74,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 DockActionMenu.Action.PRIMARY -> toggle(id)
                 DockActionMenu.Action.RESET -> c.submit(Command.Rewind(id))
                 DockActionMenu.Action.STOP -> stop(id)
+                DockActionMenu.Action.SETTINGS -> settings(id)
                 null -> Unit
             }
         }
@@ -107,9 +108,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 text=PointF(shape.text.x+location[0],shape.text.y+location[1]),
                 contour=shape.contour?.mapIndexed { index, value -> value+location[index%2] }?.toFloatArray())
         }
-        (control.dialog.window?.decorView?.background as? GlassBackground)?.let { bg ->
-            bounds.left+=dp(4)*(if(bg.side==DockSide.LEFT) 1-bg.approach else 1f)
-            bounds.right-=dp(4)*(if(bg.side==DockSide.RIGHT) 1-bg.approach else 1f)
+        (control.view as? FloatingBarLayout)?.let { bar ->
+            bounds.set(bar.surfaceBounds());bounds.offset(location[0].toFloat(),location[1].toFloat())
         }
         val text = control.info!!; text.getLocationOnScreen(location)
         return MorphShape(bounds, PointF(location[0] + text.width / 2f, location[1] + text.height / 2f))
@@ -235,8 +235,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 if (control.color != t.definition.color) {
                     control.color=t.definition.color
                     control.dialog.window!!.apply {
-                        setBackgroundDrawable(if(control.dock==DockSide.NONE) GlassBackground(HaloGlass.color(t.definition.color.toInt()),dp(28).toFloat())
-                            else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
                         decorView.setPadding(0,0,0,0); decorView.elevation=0f
                         if(Build.VERSION.SDK_INT>=31) setBackgroundBlurRadius(0)
                     }
@@ -270,7 +269,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         } catch (_: SecurityException) { removeAll() }
         catch (_: WindowManager.BadTokenException) { removeAll() }
     }
-    private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("track", id))
+    private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("track", id))
     private fun toggle(id: Int) {
         val status = c.state.value.tracks[id].session?.status
         c.scope.launch {
@@ -297,15 +296,18 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
         val root: View
         if (dock != DockSide.NONE) {
             root = DockedTimerView(context).apply { this.track = track; isClickable = true; isFocusable = true }
-            dialog.setContentView(root, ViewGroup.LayoutParams(dp(160), dp(192)))
+            dialog.setContentView(root, ViewGroup.LayoutParams(dp(160), dp(224)))
         } else {
             root = FloatingBarLayout(context).apply {
                 this.track=track;orientation=LinearLayout.VERTICAL
-                val orbit=if(track.definition.rotateBarText) 14 else 2
-                setPadding(dp(6),dp(orbit),dp(6),dp(orbit))
+                val orbit=if(track.definition.showBarName && track.definition.rotateBarText) 26 else 0
+                setPadding(dp(orbit),dp(orbit),dp(orbit),dp(if(track.definition.showBarName) 34 else 0))
             }
-            val row=LinearLayout(context).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL }
-            root.addView(row)
+            val row=LinearLayout(context).apply {
+                orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL
+                setPadding(dp(8),dp(4),dp(8),dp(4))
+            }
+            root.addView(row,LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,dp(56)))
             info = TextView(context).apply {
                 textSize = 20f; typeface = context.resources.getFont(R.font.jetbrains_mono_regular); gravity = Gravity.CENTER
                 text = formatTime(track.session?.remaining(SystemClock.elapsedRealtime()) ?: 0)
@@ -325,20 +327,13 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
             play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
             button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
             button("■", "Stop ${track.definition.name}") { stop(id) }
-            if(track.definition.showBarName) {
-                name=TextView(context).apply {
-                    text=track.definition.name;typeface=context.resources.getFont(R.font.poppins_semibold)
-                    textSize=11f;includeFontPadding=false;maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
-                    setPadding(dp(10),0,dp(10),dp(5))
-                }
-                root.addView(name,LinearLayout.LayoutParams(infoWidth+dp(144),LinearLayout.LayoutParams.WRAP_CONTENT))
-            }
+            button("⚙︎", "Open Halo settings") { settings(id) }
             info.setOnClickListener { toggle(id) }
             dialog.setContentView(root)
         }
         root.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val width = if (dock == DockSide.NONE) root.measuredWidth else dp(160)
-        val height = if (dock == DockSide.NONE) root.measuredHeight.coerceAtLeast(dp(56)) else dp(192)
+        val height = if (dock == DockSide.NONE) root.measuredHeight.coerceAtLeast(dp(56)) else dp(224)
         val screen = context.resources.displayMetrics
         val maxX = (screen.widthPixels - width).coerceAtLeast(0)
         val maxY = (screen.heightPixels - height - dp(56)).coerceAtLeast(0)
@@ -379,7 +374,9 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     val dx = event.rawX - downX; val dy = event.rawY - downY
                     if (abs(dx) + abs(dy) > ViewConfiguration.get(context).scaledTouchSlop) { dragged = true; handle.removeCallbacks(longPress) }
                     if (dragged) {
-                        p.x = (initialX + dx.toInt()).coerceIn(if (dock == DockSide.NONE) 0 else -width / 2, if (dock == DockSide.NONE) maxX else screen.widthPixels - width / 2)
+                        val body=(root as? FloatingBarLayout)?.surfaceBounds()
+                        p.x = (initialX + dx.toInt()).coerceIn(if(body!=null) -body.left.toInt() else -width/2,
+                            if(body!=null) screen.widthPixels-body.right.toInt() else screen.widthPixels-width/2)
                         p.y = (initialY + dy.toInt()).coerceIn(0, maxY)
                         window.attributes = p
                         val control=controls[id]
@@ -404,8 +401,8 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                             preview?.let { surface ->
                                 val cy=p.y+height/2f
                                 val bounds=if(dock!=DockSide.NONE) RectF(p.x+width/2f-dp(48),cy-dp(48),p.x+width/2f+dp(48),cy+dp(48))
-                                    else RectF(p.x.toFloat(),p.y.toFloat(),(p.x+width).toFloat(),(p.y+height).toFloat())
-                                surface.windowY=(cy-dp(112)).toInt()
+                                    else (root as FloatingBarLayout).surfaceBounds().apply { offset(p.x.toFloat(),p.y.toFloat()) }
+                                surface.windowY=(bounds.centerY()-dp(112)).toInt()
                                 val params=surface.layoutParams as WindowManager.LayoutParams
                                 params.y=surface.windowY;wm.updateViewLayout(surface,params)
                                 surface.position(bounds,screen.widthPixels)
@@ -423,11 +420,12 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     if (dragged) {
                         val old=controls[id]
                         // Resolve the final pointer too: Android can batch the last MOVE before UP.
+                        val finalBody=(root as? FloatingBarLayout)?.surfaceBounds()?.apply { offset(p.x.toFloat(),p.y.toFloat()) }
                         val side=when {
                             event.rawX<=dp(16) -> DockSide.LEFT
                             event.rawX>=screen.widthPixels-dp(16) -> DockSide.RIGHT
-                            dock==DockSide.NONE && p.x<=1 -> DockSide.LEFT
-                            dock==DockSide.NONE && p.x+width>=screen.widthPixels-1 -> DockSide.RIGHT
+                            finalBody!=null && finalBody.left<=1 -> DockSide.LEFT
+                            finalBody!=null && finalBody.right>=screen.widthPixels-1 -> DockSide.RIGHT
                             else -> old?.drag?.contact ?: DockSide.NONE
                         }
                         val nx=if(side==DockSide.NONE && dock!=DockSide.NONE) event.rawX/screen.widthPixels else p.x.toFloat()/maxX.coerceAtLeast(1)
@@ -442,7 +440,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(animated=true); controls[id]?.let { clearDrag(it) };root.alpha=1f
-                    if(dock==DockSide.NONE) window.setBackgroundDrawable(GlassBackground(track.definition.color.toInt(),dp(28).toFloat()))
+                    window.setBackgroundDrawableResource(android.R.color.transparent)
                     (root as? DockedTimerView)?.apply { fullCircle=false; pull=0f; invalidate() }; p.x = initialX; p.y = initialY; window.attributes = p; true }
                 else -> false
             }

@@ -71,8 +71,8 @@ internal class DragSurfaceView(context:Context,private val track:Track,private v
         if(!circle && mix<.7f) {
             val scale=(1-mix/.7f).coerceIn(0f,1f)
             paint.typeface=android.graphics.Typeface.DEFAULT;paint.textSize=22*d
-            listOf(if(track.session?.status==Status.RUNNING) "Ⅱ" else "▶","↺","■").forEachIndexed { i,icon ->
-                val x=free.right-(126-48*i)*d
+            listOf(if(track.session?.status==Status.RUNNING) "Ⅱ" else "▶","↺","■","⚙︎").forEachIndexed { i,icon ->
+                val x=free.right-(174-48*i)*d
                 canvas.save();canvas.translate(x+(text.x-x)*mix,text.y);canvas.scale(scale,scale)
                 canvas.drawText(icon,0f,-(paint.ascent()+paint.descent())/2,paint);canvas.restore()
             }

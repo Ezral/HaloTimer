@@ -14,9 +14,9 @@ def save(im,name):
 def header(im,title,sub):
  d=ImageDraw.Draw(im);d.text((90,65),'HALOTIMER  /  ANDROID ALPHA 07',font=font(24,True),fill='#A695F8')
  d.text((90,115),title,font=font(66,True),fill='#F7F6FC');d.text((90,215),sub,font=font(25),fill='#BBB7C8')
-scene=[('21-rounded-bar-with-name.png','01  Compact & personal','Rounded bar · optional name'),
+scene=[('21-rounded-bar-with-name.png','01  Compact & personal','Pill · optional outside name'),
  ('23-contour-label-left.png','02  Along the contour','One label follows the dock'),
- ('27-bar-perimeter-text.png','03  Text in motion','Optional travel around the bar'),
+ ('27-bar-perimeter-text.png','03  Text in motion','One name travels outside the pill'),
  ('29-completion-full-page.png','04  A colorful finish','Timer + sequence completion')]
 im=Image.new('RGB',(2400,1800),'#111019');header(im,'Time, in its own shape.','Actual Android emulator captures over a separate sample app.')
 d=ImageDraw.Draw(im)
@@ -28,7 +28,7 @@ for i,(src,title,desc) in enumerate(scene):
 d.text((90,1720),'Native captures · No simulated app screens · Physical-device feel remains subject to testing',font=font(20),fill='#888192')
 save(im,'HaloTimer-alpha07-features.png')
 # Tight crops retain the entire display width and the same vertical region in every frame.
-items=[('21-rounded-bar-with-name.png','Floating bar'),('22-bar-merges-while-held.png','Touch edge · merge'),('23-contour-label-left.png','Release · dock'),('24-held-circle.png','Pull · circle'),('25-circle-merges-right-while-held.png','Touch opposite edge'),('26-contour-label-right.png','Release · dock again')]
+items=[('21-rounded-bar-with-name.png','Floating pill'),('22-bar-merges-while-held.png','Touch edge · merge'),('23-contour-label-left.png','Release · dock'),('24-held-circle.png','Pull · circle'),('25-circle-merges-right-while-held.png','Touch opposite edge'),('26-contour-label-right.png','Release · dock again')]
 im=Image.new('RGB',(2400,1540),'#111019');header(im,'A single gesture. Either edge.','Real captures: contact starts the merge before the finger lifts.')
 d=ImageDraw.Draw(im)
 for i,(src,title) in enumerate(items):

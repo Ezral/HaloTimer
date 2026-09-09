@@ -119,8 +119,8 @@ class HaloMarketingCapture {
             pointer(MotionEvent.ACTION_DOWN, 24*d, dock.centerY().toFloat())
             SystemClock.sleep(1500); shot("07-dock-actions")
             val top = (dock.centerY() - 144*d).coerceAtLeast(0f)
-            val x = (kotlin.math.cos(Math.toRadians(-55.0))*108*d).toFloat()
-            val y = top + (144 + kotlin.math.sin(Math.toRadians(-55.0))*108).toFloat()*d
+            val x = (kotlin.math.cos(Math.toRadians(-67.5))*108*d).toFloat()
+            val y = top + (144 + kotlin.math.sin(Math.toRadians(-67.5))*108).toFloat()*d
             pointer(MotionEvent.ACTION_MOVE, x, y); SystemClock.sleep(600); pointer(MotionEvent.ACTION_UP, x, y)
             waitFor { c.state.value.tracks[0].session?.status == Status.PAUSED }
             SystemClock.sleep(1000)
