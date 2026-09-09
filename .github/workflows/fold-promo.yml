@@ -1,0 +1,57 @@
+name: Fold7 marketing video
+on:
+  pull_request:
+    paths:
+      - .github/workflows/fold-promo.yml
+      - .github/scripts/fold-promo.sh
+      - app/src/androidTest/java/com/ezral/halo/HaloFoldPromoCapture.kt
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fold-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Validate foldable hardware profile
+        run: |
+          avdmanager list devices | tee /tmp/halo-avd-devices.txt
+          grep -F '"7.6in Foldable"' /tmp/halo-avd-devices.txt
+      - name: Prepare licensed demonstration clips
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          mkdir -p app/src/androidTest/assets
+          curl --retry 3 -fsSL 'https://videos.pexels.com/video-files/5319099/5319099-uhd_3840_2160_25fps.mp4' -o /tmp/short1.mp4
+          curl --retry 3 -fsSL 'https://videos.pexels.com/video-files/5319856/5319856-uhd_2160_3840_25fps.mp4' -o /tmp/short2.mp4
+          for n in 1 2; do
+            ffmpeg -v error -i /tmp/short$n.mp4 -t 15 -vf 'scale=540:960:force_original_aspect_ratio=increase,crop=540:960,setsar=1' -an -c:v libx264 -preset fast -crf 23 -movflags +faststart app/src/androidTest/assets/short$n.mp4
+          done
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile capture APKs
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: '7.6in Foldable'
+          disable-animations: true
+          script: bash .github/scripts/fold-promo.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: halo-fold-promo
+          path: |
+            fold-promo-captures/
+            app/build/outputs/androidTest-results/

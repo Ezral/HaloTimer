@@ -1,0 +1,465 @@
+package com.ezral.halo.overlay
+
+import android.app.Dialog
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.PointF
+import android.graphics.RectF
+import android.graphics.PixelFormat
+import android.os.Build
+import android.os.SystemClock
+import android.provider.Settings
+import android.view.*
+import android.widget.*
+import com.ezral.halo.MainActivity
+import com.ezral.halo.R
+import com.ezral.halo.core.*
+import com.ezral.halo.data.Preferences
+import com.ezral.halo.runtime.TimerCoordinator
+import kotlin.math.abs
+import kotlinx.coroutines.launch
+
+class OverlayController(private val context: Context, private val c: TimerCoordinator) {
+    private val wm = context.getSystemService(WindowManager::class.java)
+    private val density = context.resources.displayMetrics.density
+    private var edge: EdgeView? = null
+    private var actionMenu: DockActionMenu? = null
+    private var actionMenuTrack: Int? = null
+    private var actionMenuX = 0
+    private var actionMenuY = 0
+    private val exitingMenus = mutableSetOf<DockActionMenu>()
+    private fun closeActionMenu(animated: Boolean = false, after: (() -> Unit)? = null) {
+        val menu=actionMenu
+        actionMenu=null; actionMenuTrack=null
+        if(menu!=null) {
+            if(animated) {
+                exitingMenus+=menu
+                menu.close { val valid=exitingMenus.remove(menu); runCatching { wm.removeView(menu) }; if(valid) after?.invoke() }
+            } else { runCatching { wm.removeView(menu) }; after?.invoke() }
+        } else after?.invoke()
+    }
+    private fun moveControl(command: Command.Move) {
+        c.scope.launch { c.execute(command); render(c.state.value,c.prefs.value) }
+    }
+    private fun openActionMenu(id: Int, dock: DockSide, centerY: Int) {
+        closeActionMenu()
+        val screen = context.resources.displayMetrics
+        val menu = DockActionMenu(context, dock, c.state.value.tracks[id].definition.color.toInt(), c.prefs.value.reducedMotion, c.state.value.tracks[id].session?.status ?: Status.READY)
+        actionMenuX = if (dock == DockSide.LEFT) 0 else screen.widthPixels - dp(168)
+        actionMenuY = (centerY - dp(144)).coerceIn(0, (screen.heightPixels - dp(288)).coerceAtLeast(0))
+        val params = WindowManager.LayoutParams(dp(168), dp(288), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, android.graphics.PixelFormat.TRANSLUCENT).apply {
+            gravity = Gravity.TOP or Gravity.LEFT; x = actionMenuX; y = actionMenuY; alpha = 1f
+            title = "Halo dock actions"
+            if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
+        }
+        // These are bounded interactive controls, not a pass-through decorative overlay.
+        // Keep the window touchable so Android does not cap its surface opacity.
+        menu.setOnTouchListener { _, _ -> true }
+        try { wm.addView(menu, params); actionMenu = menu; actionMenuTrack = id }
+        catch (_: WindowManager.BadTokenException) { closeActionMenu() }
+        catch (_: SecurityException) { closeActionMenu() }
+    }
+    private fun selectAction(rawX: Float, rawY: Float) {
+        actionMenu?.let { menu ->
+            val location = IntArray(2); menu.getLocationOnScreen(location)
+            menu.select(rawX - location[0], rawY - location[1])
+        }
+    }
+    private fun chooseAction(id: Int, action: DockActionMenu.Action?) {
+        closeActionMenu(animated=true) {
+            when(action) {
+                DockActionMenu.Action.PRIMARY -> toggle(id)
+                DockActionMenu.Action.RESET -> c.submit(Command.Rewind(id))
+                DockActionMenu.Action.STOP -> stop(id)
+                DockActionMenu.Action.SETTINGS -> settings(id)
+                null -> Unit
+            }
+        }
+    }
+    private data class Control(val dialog: Dialog, val view: View, val dock: DockSide, val info: TextView? = null, val play: TextView? = null, var color: Long? = null, val name: TextView? = null, val barOptions: Pair<Boolean,Boolean> = true to false, var drag: DragSurfaceView? = null)
+    private data class Morph(val view: DockMorphView, val target: Control)
+    private val morphs = mutableMapOf<Int, Morph>()
+    private val retiring = mutableSetOf<Control>()
+    private fun finishMorph(id: Int) {
+        morphs.remove(id)?.let { morph ->
+            runCatching { wm.removeView(morph.view) }
+            reveal(morph.target)
+        }
+    }
+    private fun reveal(control: Control) {
+        control.dialog.window?.let { window ->
+            window.attributes = window.attributes.apply { alpha = 1f; flags = flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv() }
+        }
+    }
+    private fun clearDrag(control:Control) {
+        control.drag?.let { runCatching { wm.removeView(it) } };control.drag=null
+    }
+    private fun shape(control: Control): MorphShape {
+        control.drag?.let { return it.currentShape() }
+        val location = IntArray(2); control.view.getLocationOnScreen(location)
+        val bounds = RectF(location[0].toFloat(), location[1].toFloat(),
+            (location[0] + control.view.width).toFloat(), (location[1] + control.view.height).toFloat())
+        if (control.dock != DockSide.NONE) {
+            val shape=(control.view as DockedTimerView).currentShape()
+            return shape.copy(bounds=RectF(shape.bounds).apply { offset(location[0].toFloat(),location[1].toFloat()) },
+                text=PointF(shape.text.x+location[0],shape.text.y+location[1]),
+                contour=shape.contour?.mapIndexed { index, value -> value+location[index%2] }?.toFloatArray())
+        }
+        (control.view as? FloatingBarLayout)?.let { bar ->
+            bounds.set(bar.surfaceBounds());bounds.offset(location[0].toFloat(),location[1].toFloat())
+        }
+        val text = control.info!!; text.getLocationOnScreen(location)
+        return MorphShape(bounds, PointF(location[0] + text.width / 2f, location[1] + text.height / 2f))
+    }
+    private fun replaceControl(id: Int, old: Control, track: Track, reduce: Boolean): Control {
+        finishMorph(id)
+        val next = createControl(track)
+        if (reduce) { clearDrag(old); old.dialog.dismiss(); return next }
+        retiring += old
+        next.dialog.window!!.apply {
+            attributes = attributes.apply { alpha = 0f; flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE }
+        }
+        next.view.post {
+            if (controls[id] !== next || !next.view.isAttachedToWindow || OverlayVisibility.menuVisible) {
+                clearDrag(old); old.dialog.dismiss(); retiring -= old; return@post
+            }
+            if (next.view.width == 0 || old.view.width == 0) {
+                clearDrag(old); old.dialog.dismiss(); retiring -= old; reveal(next); return@post
+            }
+            val start = shape(old); val end = shape(next)
+            val area = RectF(start.bounds).apply { union(end.bounds); inset(-dp(12).toFloat(), -dp(12).toFloat()) }
+            val left = kotlin.math.floor(area.left).toInt(); val top = kotlin.math.floor(area.top).toInt()
+            fun local(value: MorphShape) = MorphShape(RectF(value.bounds).apply { offset(-left.toFloat(), -top.toFloat()) },
+                PointF(value.text.x - left, value.text.y - top), value.side,
+                value.contour?.mapIndexed { index, v -> v-if(index%2==0) left else top }?.toFloatArray())
+            val view = DockMorphView(context, local(start), local(end), track) { finishMorph(id) }
+            val params = WindowManager.LayoutParams(kotlin.math.ceil(area.width()).toInt(), kotlin.math.ceil(area.height()).toInt(),
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT).apply {
+                gravity = Gravity.TOP or Gravity.LEFT; x = left; y = top; alpha = 1f; title = "Halo surface transition"
+                if (Build.VERSION.SDK_INT >= 30) setFitInsetsTypes(0)
+            }
+            view.setOnTouchListener { _, _ -> true } // Only the compact morph bounds consume new touches.
+            try { wm.addView(view, params); morphs[id] = Morph(view, next) }
+            catch (_: WindowManager.BadTokenException) { reveal(next) }
+            catch (_: SecurityException) { reveal(next) }
+            clearDrag(old); old.dialog.dismiss(); retiring -= old
+        }
+        return next
+    }
+    private var completion:CompletionView?=null
+    private var completionTrack:Int?=null
+    private val completedSessions=mutableMapOf<Int,String>()
+    private val completionQueue=ArrayDeque<Pair<Track,PointF>>()
+    private fun closeCompletion() {
+        completion?.let { runCatching { wm.removeView(it) } };completion=null;completionTrack=null
+    }
+    private fun updateCompletion(state:Snapshot,prefs:Preferences,now:Long) {
+        state.tracks.forEach { t ->
+            val session=t.session
+            if(session?.status==Status.COMPLETED && session.id!=completedSessions[t.definition.id]) {
+                completedSessions[t.definition.id]=session.id
+                if(prefs.completionEnabled && !OverlayVisibility.menuVisible && now-session.alertStartedAtMs in 0..10_000) {
+                    val origin=controls[t.definition.id]?.let { shape(it).text } ?: PointF(
+                        context.resources.displayMetrics.widthPixels*(if(t.definition.dock==DockSide.LEFT) 0f else if(t.definition.dock==DockSide.RIGHT) 1f else t.definition.x),
+                        context.resources.displayMetrics.heightPixels*t.definition.y)
+                    completionQueue.addLast(t to origin)
+                }
+            }
+        }
+        if(!prefs.completionEnabled || OverlayVisibility.menuVisible) { completionQueue.clear();closeCompletion();return }
+        completionQueue.removeAll { state.tracks[it.first.definition.id].session?.let { s -> s.id==it.first.session?.id && s.status==Status.COMPLETED } != true }
+        if(completionTrack?.let { state.tracks[it].session?.status!=Status.COMPLETED }==true) closeCompletion()
+        if(completion==null && completionQueue.isNotEmpty()) {
+            val (track,origin)=completionQueue.removeFirst()
+            val view=CompletionView(context,track,origin,prefs) { closeCompletion() }
+            val params=WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT).apply {
+                gravity=Gravity.TOP or Gravity.LEFT;title="Halo completion";alpha=1f
+                if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+                if(Build.VERSION.SDK_INT>=28) layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            try { wm.addView(view,params);completion=view;completionTrack=track.definition.id }
+            catch(_:SecurityException) { closeCompletion() }
+            catch(_:WindowManager.BadTokenException) { closeCompletion() }
+        }
+    }
+    private val controls = mutableMapOf<Int, Control>()
+    private var previewId = 0
+    private var previewUntil = 0L
+    private var lastSize = ""
+    private fun dp(v: Int) = (v * density).toInt()
+    fun preview(id: Int) { previewId = id; previewUntil = SystemClock.elapsedRealtime() + 5_000 }
+    fun previewing() = previewUntil > SystemClock.elapsedRealtime()
+    fun render(state: Snapshot, preferences: Preferences) {
+        if (!Settings.canDrawOverlays(context)) { removeAll(); return }
+        val now = SystemClock.elapsedRealtime()
+        val size = "${context.resources.displayMetrics.widthPixels}:${context.resources.displayMetrics.heightPixels}:${context.resources.configuration.orientation}"
+        if (size != lastSize) { removeAll(); lastSize = size }
+        val tracks = state.tracks.filter { it.definition.active && it.session?.let { s -> s.status == Status.RUNNING || s.status == Status.PAUSED || s.visualUntilMs > now } == true }.toMutableList()
+        if (previewing()) {
+            val t = state.tracks[previewId]
+            tracks.removeAll { it.definition.id == previewId }
+            tracks += t.copy(session = Session("preview", listOf(Step()), deadlineMs = now, status = Status.COMPLETED, visualUntilMs = previewUntil, alertStartedAtMs = previewUntil - 5_000))
+            tracks.sortBy { it.definition.id }
+        }
+        if (tracks.isEmpty()) { removeAll(); return }
+        try {
+            if (edge == null) { edge = EdgeView(context); wm.addView(edge, EdgeWindowLayout.create(context)) }
+            // Canvas alerts follow Halo's explicit setting; system transition scales are independent.
+            val reduce = preferences.reducedMotion
+            edge?.apply { this.tracks = tracks; reducedMotion = reduce; invalidate() }
+            val visible = if (OverlayVisibility.menuVisible) emptyMap() else tracks.filterNot { it.definition.hidden }.associateBy { it.definition.id }
+            controls.keys.toList().filter { it !in visible }.forEach {
+                if (actionMenuTrack == it) closeActionMenu()
+                finishMorph(it); controls.remove(it)?.let { old -> clearDrag(old);old.dialog.dismiss() }
+            }
+            visible.forEach { (id, t) ->
+                val previous = controls[id]
+                val control = when {
+                    previous == null -> createControl(t)
+                    previous.dock != t.definition.dock || previous.barOptions != (t.definition.showBarName to t.definition.rotateBarText) -> {
+                        if (actionMenuTrack == id) closeActionMenu()
+                        replaceControl(id, previous, t, reduce)
+                    }
+                    else -> previous
+                }
+                controls[id] = control
+                if (control.color != t.definition.color) {
+                    control.color=t.definition.color
+                    control.dialog.window!!.apply {
+                        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                        decorView.setPadding(0,0,0,0); decorView.elevation=0f
+                        if(Build.VERSION.SDK_INT>=31) setBackgroundBlurRadius(0)
+                    }
+                    fun recolor(view:View) {
+                        if(view is TextView) view.setTextColor(HaloGlass.foreground(t.definition.color.toInt()))
+                        if(view is ViewGroup) for(i in 0 until view.childCount) recolor(view.getChildAt(i))
+                    }
+                    recolor(control.view)
+                }
+                (control.view as? FloatingBarLayout)?.apply { track=t;reducedMotion=reduce;invalidate() }
+                control.name?.text=t.definition.name
+                val s = t.session!!
+                control.info?.apply {
+                    text = if (s.status == Status.COMPLETED) "00:00" else formatTime(s.remaining(now))
+                    setTextColor(HaloGlass.foreground(t.definition.color.toInt()))
+                    typeface = context.resources.getFont(R.font.jetbrains_mono_regular)
+                    textSize = 20f
+                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Drag to an edge to dock."
+                }
+                control.play?.apply {
+                    text = when(s.status) { Status.RUNNING -> "Ⅱ"; else -> "▶" }
+                    contentDescription = "${when(s.status) { Status.RUNNING -> "Pause"; else -> "Play" }} ${t.definition.name}"
+                }
+                (control.view as? DockedTimerView)?.apply {
+                    track = t; reducedMotion = reduce
+                    contentDescription = "${t.definition.name}, ${formatTime(s.remaining(now))}. Tap or drag inward to expand. Long press and slide for playback actions."
+                    invalidate()
+                }
+            }
+            updateCompletion(state,preferences,now)
+        } catch (_: SecurityException) { removeAll() }
+        catch (_: WindowManager.BadTokenException) { removeAll() }
+    }
+    private fun settings(id: Int) = context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("track", id))
+    private fun toggle(id: Int) {
+        val status = c.state.value.tracks[id].session?.status
+        c.scope.launch {
+            if(status==Status.COMPLETED || status==Status.INTERRUPTED) c.execute(Command.Rewind(id))
+            c.execute(if(status==Status.RUNNING) Command.Pause(id) else Command.Start(setOf(id)))
+        }
+    }
+    private fun stop(id: Int) {
+        if(previewId==id) previewUntil=0
+        // Reset is the existing cancellation command: clears session, alarm, alert and haptics.
+        c.scope.launch { c.execute(Command.Reset(id)); render(c.state.value,c.prefs.value) }
+    }
+    private fun createControl(track: Track): Control {
+        val id = track.definition.id; val dock = track.definition.dock
+        val dialog = Dialog(context, R.style.Theme_Halo_Glass)
+        val window = dialog.window!!
+        window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        window.addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setDimAmount(0f); window.decorView.setPadding(0, 0, 0, 0)
+        dialog.setCancelable(false); dialog.setCanceledOnTouchOutside(false)
+        var info: TextView? = null; var play: TextView? = null; var name:TextView?=null
+        val root: View
+        if (dock != DockSide.NONE) {
+            root = DockedTimerView(context).apply { this.track = track; isClickable = true; isFocusable = true }
+            dialog.setContentView(root, ViewGroup.LayoutParams(dp(160), dp(224)))
+        } else {
+            root = FloatingBarLayout(context).apply {
+                this.track=track;orientation=LinearLayout.VERTICAL
+                val orbit=if(track.definition.showBarName && track.definition.rotateBarText) 26 else 0
+                setPadding(dp(orbit),dp(orbit),dp(orbit),dp(if(track.definition.showBarName) 34 else 0))
+            }
+            val row=LinearLayout(context).apply {
+                orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL
+                setPadding(dp(8),dp(4),dp(8),dp(4))
+            }
+            root.addView(row,LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,dp(56)))
+            info = TextView(context).apply {
+                textSize = 20f; typeface = context.resources.getFont(R.font.jetbrains_mono_regular); gravity = Gravity.CENTER
+                text = formatTime(track.session?.remaining(SystemClock.elapsedRealtime()) ?: 0)
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; includeFontPadding = false
+                minHeight = dp(48); setPadding(dp(6), 0, dp(2), 0); setTextColor(0xFF222632.toInt()); isClickable = true
+            }
+            info.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val infoWidth = info.measuredWidth.coerceIn(dp(72), dp(96))
+            row.addView(info, LinearLayout.LayoutParams(infoWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
+            fun button(label: String, description: String, action: () -> Unit): TextView {
+                val button = TextView(context).apply {
+                    text = label; textSize = 22f; gravity = Gravity.CENTER; contentDescription = description
+                    setTextColor(0xFF303644.toInt()); isFocusable = true; setOnClickListener { action() }
+                }
+                row.addView(button, LinearLayout.LayoutParams(dp(48), dp(48))); return button
+            }
+            play = button("Ⅱ", "Pause ${track.definition.name}") { toggle(id) }
+            button("↺", "Reset ${track.definition.name}") { c.submit(Command.Rewind(id)) }
+            button("■", "Stop ${track.definition.name}") { stop(id) }
+            button("⚙︎", "Open Halo settings") { settings(id) }
+            info.setOnClickListener { toggle(id) }
+            dialog.setContentView(root)
+        }
+        root.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val width = if (dock == DockSide.NONE) root.measuredWidth else dp(160)
+        val height = if (dock == DockSide.NONE) root.measuredHeight.coerceAtLeast(dp(56)) else dp(224)
+        val screen = context.resources.displayMetrics
+        val maxX = (screen.widthPixels - width).coerceAtLeast(0)
+        val maxY = (screen.heightPixels - height - dp(56)).coerceAtLeast(0)
+        val p = window.attributes.apply {
+            gravity = Gravity.TOP or Gravity.LEFT
+            if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+            this.width = width; this.height = if (dock == DockSide.NONE) WindowManager.LayoutParams.WRAP_CONTENT else height
+            x = when (dock) { DockSide.LEFT -> -width / 2; DockSide.RIGHT -> screen.widthPixels - width / 2; else -> (maxX * track.definition.x).toInt() }
+            y = (maxY * track.definition.y).toInt(); title = "Halo timer ${track.definition.name}"
+        }
+        window.attributes = p
+        fun expand(x: Float = if (dock == DockSide.LEFT) 0.05f else 0.95f) = moveControl(Command.Move(id, x.coerceIn(0f, 1f), p.y.toFloat() / maxY.coerceAtLeast(1), DockSide.NONE))
+        if (dock != DockSide.NONE) {
+            root.setOnClickListener { expand() }
+            root.setOnLongClickListener {
+                val location = IntArray(2); root.getLocationOnScreen(location)
+                openActionMenu(id, dock, location[1] + root.height / 2); true
+            }
+        }
+        val handle = info ?: root
+        var downX = 0f; var downY = 0f; var initialX = 0; var initialY = 0; var dragged = false; var holding = false
+        val longPress = Runnable {
+            if (handle.isAttachedToWindow && !dragged && dock != DockSide.NONE) {
+                holding = true; handle.performLongClick()
+            }
+        }
+        handle.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = event.rawX; downY = event.rawY; initialX = p.x; initialY = p.y; dragged = false; holding = false
+                                handle.removeCallbacks(longPress)
+                    if (dock != DockSide.NONE) handle.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                    true }
+                MotionEvent.ACTION_MOVE -> {
+                    if (holding) {
+                        selectAction(event.rawX, event.rawY)
+                        return@setOnTouchListener true
+                    }
+                    val dx = event.rawX - downX; val dy = event.rawY - downY
+                    if (abs(dx) + abs(dy) > ViewConfiguration.get(context).scaledTouchSlop) { dragged = true; handle.removeCallbacks(longPress) }
+                    if (dragged) {
+                        val body=(root as? FloatingBarLayout)?.surfaceBounds()
+                        p.x = (initialX + dx.toInt()).coerceIn(if(body!=null) -body.left.toInt() else -width/2,
+                            if(body!=null) screen.widthPixels-body.right.toInt() else screen.widthPixels-width/2)
+                        p.y = (initialY + dy.toInt()).coerceIn(0, maxY)
+                        window.attributes = p
+                        val control=controls[id]
+                        if(control!=null) {
+                            var preview=control.drag
+                            if(preview==null) {
+                                preview=DragSurfaceView(context,c.state.value.tracks[id],dock!=DockSide.NONE,c.prefs.value.reducedMotion)
+                                val params=WindowManager.LayoutParams(screen.widthPixels,dp(224),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT).apply {
+                                    gravity=Gravity.TOP or Gravity.LEFT;title="Halo drag surface";alpha=1f
+                                    if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
+                                }
+                                preview.setOnTouchListener { _,_->true }
+                                try {
+                                    wm.addView(preview,params);control.drag=preview
+                                    root.alpha=0f;window.setBackgroundDrawableResource(android.R.color.transparent)
+                                } catch(_:SecurityException) { preview=null }
+                                catch(_:WindowManager.BadTokenException) { preview=null }
+                            }
+                            preview?.let { surface ->
+                                val cy=p.y+height/2f
+                                val bounds=if(dock!=DockSide.NONE) RectF(p.x+width/2f-dp(48),cy-dp(48),p.x+width/2f+dp(48),cy+dp(48))
+                                    else (root as FloatingBarLayout).surfaceBounds().apply { offset(p.x.toFloat(),p.y.toFloat()) }
+                                surface.windowY=(bounds.centerY()-dp(112)).toInt()
+                                val params=surface.layoutParams as WindowManager.LayoutParams
+                                params.y=surface.windowY;wm.updateViewLayout(surface,params)
+                                surface.position(bounds,screen.widthPixels)
+                            }
+                        }
+                    }; true
+                }
+                MotionEvent.ACTION_UP -> {
+                    handle.removeCallbacks(longPress)
+                    if (holding) {
+                        selectAction(event.rawX, event.rawY)
+                        chooseAction(id, actionMenu?.selected); holding = false
+                        return@setOnTouchListener true
+                    }
+                    if (dragged) {
+                        val old=controls[id]
+                        // Resolve the final pointer too: Android can batch the last MOVE before UP.
+                        val finalBody=(root as? FloatingBarLayout)?.surfaceBounds()?.apply { offset(p.x.toFloat(),p.y.toFloat()) }
+                        val side=when {
+                            event.rawX<=dp(16) -> DockSide.LEFT
+                            event.rawX>=screen.widthPixels-dp(16) -> DockSide.RIGHT
+                            finalBody!=null && finalBody.left<=1 -> DockSide.LEFT
+                            finalBody!=null && finalBody.right>=screen.widthPixels-1 -> DockSide.RIGHT
+                            else -> old?.drag?.contact ?: DockSide.NONE
+                        }
+                        val nx=if(side==DockSide.NONE && dock!=DockSide.NONE) event.rawX/screen.widthPixels else p.x.toFloat()/maxX.coerceAtLeast(1)
+                        c.scope.launch {
+                            c.execute(Command.Move(id,nx.coerceIn(0f,1f),p.y.toFloat()/maxY.coerceAtLeast(1),side))
+                            if(old!=null && controls[id]===old && !OverlayVisibility.menuVisible) {
+                                controls[id]=replaceControl(id,old,c.state.value.tracks[id],c.prefs.value.reducedMotion)
+                            }
+                            render(c.state.value,c.prefs.value)
+                        }
+                    } else v.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> { handle.removeCallbacks(longPress); holding = false; closeActionMenu(animated=true); controls[id]?.let { clearDrag(it) };root.alpha=1f
+                    window.setBackgroundDrawableResource(android.R.color.transparent)
+                    (root as? DockedTimerView)?.apply { fullCircle=false; pull=0f; invalidate() }; p.x = initialX; p.y = initialY; window.attributes = p; true }
+                else -> false
+            }
+        }
+        dialog.show()
+        // The window remains non-modal and only its compact bounds receive touches.
+        return Control(dialog, root, dock, info, play, name=name,barOptions=track.definition.showBarName to track.definition.rotateBarText)
+    }
+    fun hideControls() {
+        completionQueue.clear();closeCompletion()
+        closeActionMenu()
+        exitingMenus.forEach { runCatching { wm.removeView(it) } }; exitingMenus.clear()
+        morphs.keys.toList().forEach { finishMorph(it) }
+        retiring.forEach { runCatching { it.dialog.dismiss() } }; retiring.clear()
+        controls.values.forEach { clearDrag(it);runCatching { it.dialog.dismiss() } }; controls.clear()
+    }
+    fun removeAll() {
+        edge?.let { runCatching { wm.removeView(it) } }; edge = null
+        hideControls()
+    }
+
+}

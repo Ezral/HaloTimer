@@ -1,0 +1,91 @@
+name: Android
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify bundled typefaces
+        run: python .github/scripts/fetch-fonts.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Reuse development signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: halo-debug-signing-v1
+      - name: Pin the development signing key
+        run: bash .github/scripts/debug-signing.sh
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Test, lint and assemble
+        run: ./gradlew :core:timer:test :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: halo-reports
+          path: |
+            core/timer/build/reports/
+            app/build/reports/
+            app/schemas/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halo-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+  native-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify bundled typefaces
+        run: python .github/scripts/fetch-fonts.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Reuse development signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: halo-debug-signing-v1
+      - name: Pin the development signing key
+        run: bash .github/scripts/debug-signing.sh
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile test APKs before booting the emulator
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash .github/scripts/native-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: halo-native-smoke
+          path: |
+            native-screenshots/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
