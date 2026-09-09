@@ -277,8 +277,8 @@ fun HaloScreen(
                 }
                 HaloCard {
                     Text("Floating bar", fontWeight = FontWeight.SemiBold)
-                    SettingToggle("Show timer name", d.showBarName) { c.submit(Command.Edit(d.copy(showBarName = it))) }
-                    SettingToggle("Rotate text around bar", d.rotateBarText) { c.submit(Command.Edit(d.copy(rotateBarText = it))) }
+                    SettingToggle("Show timer name", d.showBarName) { c.submit(Command.BarAppearance(d.id, showName = it)) }
+                    SettingToggle("Rotate text around bar", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
                 }
                 HaloCard {
                     Text("Completion screen", fontWeight = FontWeight.SemiBold)

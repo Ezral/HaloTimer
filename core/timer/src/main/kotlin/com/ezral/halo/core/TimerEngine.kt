@@ -92,6 +92,7 @@ sealed interface Command {
     data class Rewind(val id: Int) : Command
     data class Activate(val id: Int, val active: Boolean) : Command
     data class Edit(val definition: Definition) : Command
+    data class BarAppearance(val id: Int, val showName: Boolean? = null, val rotateText: Boolean? = null) : Command
     data class Adjust(val target: AdjustmentTarget, val deltaMs: Long) : Command
     data class Hide(val id: Int, val hidden: Boolean) : Command
     data class Move(val id: Int, val x: Float, val y: Float, val dock: DockSide? = null) : Command
@@ -192,6 +193,9 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 } else t
             }
             is Command.Hide -> change(command.id) { it.copy(definition = it.definition.copy(hidden = command.hidden)) }
+            is Command.BarAppearance -> change(command.id) { t -> t.copy(definition=t.definition.copy(
+                showBarName=command.showName ?: t.definition.showBarName,
+                rotateBarText=command.rotateText ?: t.definition.rotateBarText)) }
             is Command.Move -> change(command.id) { it.copy(definition = it.definition.copy(x = command.x.coerceIn(0f, 1f), y = command.y.coerceIn(0f, 1f), dock = command.dock ?: it.definition.dock)) }
             Command.ShowAll -> state = state.copy(tracks = state.tracks.map { it.copy(definition = it.definition.copy(hidden = false)) })
             Command.StopAll -> state = state.copy(tracks = state.tracks.map { it.copy(session = null) }, outbox = emptyList())

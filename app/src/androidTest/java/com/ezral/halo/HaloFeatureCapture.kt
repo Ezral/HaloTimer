@@ -56,6 +56,7 @@ class HaloFeatureCapture {
         rule.onNodeWithContentDescription("Show timer name").performScrollTo().performClick()
         waitFor { !c.state.value.tracks[0].definition.showBarName }
         rule.onNodeWithContentDescription("Show timer name").performClick()
+        waitFor { c.state.value.tracks[0].definition.showBarName }
         rule.onNodeWithContentDescription("Rotate text around bar").performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName && c.state.value.tracks[0].definition.rotateBarText }
         rule.onNodeWithText("Completion screen",useUnmergedTree=true).performScrollTo()

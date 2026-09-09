@@ -422,7 +422,14 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                     }
                     if (dragged) {
                         val old=controls[id]
-                        val side=old?.drag?.contact ?: DockSide.NONE
+                        // Resolve the final pointer too: Android can batch the last MOVE before UP.
+                        val side=when {
+                            event.rawX<=dp(16) -> DockSide.LEFT
+                            event.rawX>=screen.widthPixels-dp(16) -> DockSide.RIGHT
+                            dock==DockSide.NONE && p.x<=1 -> DockSide.LEFT
+                            dock==DockSide.NONE && p.x+width>=screen.widthPixels-1 -> DockSide.RIGHT
+                            else -> old?.drag?.contact ?: DockSide.NONE
+                        }
                         val nx=if(side==DockSide.NONE && dock!=DockSide.NONE) event.rawX/screen.widthPixels else p.x.toFloat()/maxX.coerceAtLeast(1)
                         c.scope.launch {
                             c.execute(Command.Move(id,nx.coerceIn(0f,1f),p.y.toFloat()/maxY.coerceAtLeast(1),side))
