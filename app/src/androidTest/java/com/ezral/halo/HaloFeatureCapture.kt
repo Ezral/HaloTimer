@@ -59,7 +59,7 @@ class HaloFeatureCapture {
         waitFor { c.state.value.tracks[0].definition.showBarName }
         rule.onNodeWithContentDescription("Rotate text around bar").performScrollTo().performClick()
         waitFor { c.state.value.tracks[0].definition.showBarName && c.state.value.tracks[0].definition.rotateBarText }
-        rule.onNodeWithText("Completion screen",useUnmergedTree=true).performScrollTo()
+        rule.onNodeWithText("Tap the completion screen to close it early.").performScrollTo()
         SystemClock.sleep(250);shot("20-completion-settings")
         // Use the compact default for the first scene, then capture optional perimeter text separately.
         command(Command.Edit(c.state.value.tracks[0].definition.copy(rotateBarText=false)))
@@ -83,7 +83,7 @@ class HaloFeatureCapture {
         waitFor { c.state.value.tracks[0].definition.dock==DockSide.LEFT && !window("Halo surface transition") && !window("Halo drag surface") }
         val dock=bounds("Tap or drag inward to expand");SystemClock.sleep(400);shot("23-contour-label-left")
         pointer(MotionEvent.ACTION_DOWN,24*d,dock.centerY().toFloat())
-        pointer(MotionEvent.ACTION_MOVE,w/2f,dock.centerY().toFloat());SystemClock.sleep(350);shot("24-held-circle")
+        pointer(MotionEvent.ACTION_MOVE,w/2f,dock.centerY().toFloat());SystemClock.sleep(1500);shot("24-held-circle")
         // Same pointer: touch the opposite edge without releasing in between.
         pointer(MotionEvent.ACTION_MOVE,w-1f,dock.centerY().toFloat());SystemClock.sleep(320)
         assertTrue(window("Halo drag surface"));shot("25-circle-merges-right-while-held")
@@ -93,7 +93,7 @@ class HaloFeatureCapture {
         ParcelFileDescriptor.AutoCloseInputStream(recording).use { it.readBytes() }
         command(Command.Move(0,.4f,.35f,DockSide.NONE));waitFor { node("Drag to an edge to dock")!=null };SystemClock.sleep(350)
         command(Command.Edit(c.state.value.tracks[0].definition.copy(rotateBarText=true)))
-        SystemClock.sleep(700);shot("27-bar-perimeter-text")
+        SystemClock.sleep(2500);waitFor { !window("Halo surface transition") };shot("27-bar-perimeter-text")
         // Final sequence step triggers exactly one reveal, which expires without stopping the timer alert.
         command(Command.Reset(0))
         shell("am start -W -n com.ezral.halo.debug/com.ezral.halo.MainActivity -f 0x00020000")

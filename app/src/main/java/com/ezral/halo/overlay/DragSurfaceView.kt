@@ -53,7 +53,7 @@ internal class DragSurfaceView(context:Context,private val track:Track,private v
     }
     override fun onDraw(canvas:Canvas) {
         val now=SystemClock.elapsedRealtime()
-        val dt=if(last==0L) 16f else (now-last).coerceAtMost(40).toFloat();last=now
+        val dt=if(last==0L) 16f else (now-last).coerceAtLeast(0).toFloat();last=now
         // Critically damped-looking, monotone approach; no spring overshoot.
         mix=if(reduced) target else mix+(target-mix)*(1-exp(-dt/55f))
         if(abs(mix-target)<.001f) mix=target
