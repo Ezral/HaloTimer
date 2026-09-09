@@ -74,3 +74,12 @@ Attach evidence for R01–R24 to STATUS.md. Resolve failures, profile frame paci
 - Long-press either dock, select each of the three icons, and release off-target. Bubbles retract in 190ms. Stop clears the session, edge alert and repeating vibration; another timer continues unchanged. Reset rewinds and pauses; the primary icon starts/resumes or pauses.
 - Watch a short and long sequence label on both edges. Each glyph follows the circular tangent at 60 degrees/second. One opaque string enters, travels around the exposed arc, fully exits behind the physical edge, then begins again. Hold the pulled-out circle: its 360-degree rotation must be continuous.
 - Test 60Hz and high-refresh displays, both navigation modes and reduced motion. Inspect screen recordings frame-by-frame for morph seams and glyph clipping. Emulator checks cannot certify device frame pacing.
+
+## Alpha 07 — Contour text, contact docking, completion screen
+
+- Confirm the undocked control has straight sides and rounded corners. Toggle the name independently from moving text around the bar. Check all three timer colors and both themes.
+- Hold a bar against either edge without lifting: the preview must merge. Pull a dock into a circle, continue the same gesture to the opposite edge, then release. Check cancellation and fast direction changes; there must be one solid silhouette and no stranded preview window.
+- Read the dock label along its shallow convex contour on both edges. Confirm tangent orientation, a single string, unchanged glyph size, and clipping at the physical edge. Check long timer/step labels.
+- Enable completion screen: finish a single timer and a sequence while another app is open. Confirm expansion starts at the current bar/dock, uses its exact color, and names the timer and final sequence step. Duration counts after expansion. Tap to close early; edge alert and Stop remain available.
+- Disable completion screen and verify normal edge alerts continue. Complete three timers simultaneously: completion pages should queue once each. Stop or enter Halo while a page is visible; no stale page should remain or reappear.
+- Check 1s/30s duration, 18sp/48sp text, bold/regular, left/center, reduced motion, portrait/landscape, 200% font scale, cutouts, and screen-off completion. A screen-off event older than 10s must not open a stale full-page screen when unlocked.

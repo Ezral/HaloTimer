@@ -28,7 +28,7 @@ internal class CompletionView(context:Context,private val track:Track,private va
     private var ended=false
     private val message=buildString {
         append("Timer is completed for\n");append(track.definition.name)
-        if(track.definition.sequence) track.session?.steps?.getOrNull(track.session.index)?.name?.takeIf { it.isNotBlank() }?.let { append(" · ");append(it) }
+        if(track.definition.sequence) track.session?.let { session -> session.steps.getOrNull(session.index)?.name }?.takeIf { it.isNotBlank() }?.let { append(" · ");append(it) }
     }
     init {
         contentDescription="$message. Tap to close completion screen."
