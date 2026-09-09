@@ -19,6 +19,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+      - name: Validate foldable hardware profile
+        run: |
+          avdmanager list devices | tee /tmp/halo-avd-devices.txt
+          grep -F '"7.6in Foldable"' /tmp/halo-avd-devices.txt
       - uses: gradle/actions/setup-gradle@v4
       - name: Compile capture APKs
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
@@ -31,7 +35,7 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          profile: pixel_fold
+          profile: '7.6in Foldable'
           disable-animations: true
           script: bash .github/scripts/fold-capture.sh
       - uses: actions/upload-artifact@v4
