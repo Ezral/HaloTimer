@@ -9,6 +9,7 @@ import android.text.TextPaint
 import android.view.View
 import com.ezral.halo.R
 import com.ezral.halo.core.Track
+import com.ezral.halo.core.CompletionMotion
 import com.ezral.halo.data.Preferences
 import kotlin.math.hypot
 
@@ -26,13 +27,15 @@ internal class CompletionView(context:Context,private val track:Track,private va
     }
     private var layout:StaticLayout?=null
     private var ended=false
+    private val motion=CompletionMotion(preferences.completionSeconds*1000L, if(preferences.reducedMotion) 0 else 420)
+    private val revealPath=Path()
     private val message=buildString {
         append("Timer is completed for\n");append(track.definition.name)
         if(track.definition.sequence) track.session?.let { session -> session.steps.getOrNull(session.index)?.name }?.takeIf { it.isNotBlank() }?.let { append(" · ");append(it) }
     }
     init {
         contentDescription="$message. Tap to close completion screen."
-        isClickable=true;isFocusable=true;setOnClickListener { finish() }
+        isClickable=true;isFocusable=true;setOnClickListener { motion.close((clock()-startedAt).coerceAtLeast(0)); invalidate() }
     }
     private fun finish() { if(!ended) { ended=true;post { finished() } } }
     override fun onSizeChanged(w:Int,h:Int,oldw:Int,oldh:Int) {
@@ -42,15 +45,16 @@ internal class CompletionView(context:Context,private val track:Track,private va
     }
     override fun onDraw(canvas:Canvas) {
         val elapsed=(clock()-startedAt).coerceAtLeast(0)
-        val revealMs=if(preferences.reducedMotion) 0 else 420
-        val end=revealMs+preferences.completionSeconds*1000L
-        if(elapsed>=end) { finish();return }
-        val p=if(revealMs==0) 1f else (elapsed/revealMs.toFloat()).coerceIn(0f,1f).let { it*it*(3-2*it) }
+        if(motion.finished(elapsed)) { finish();return }
+        val p=motion.progress(elapsed)
         val radius=maxOf(hypot(origin.x,origin.y),hypot(width-origin.x,origin.y),hypot(origin.x,height-origin.y),hypot(width-origin.x,height-origin.y))
-        canvas.drawCircle(origin.x,origin.y,radius*p,fill)
-        if(p>=1f) layout?.let { text ->
+        revealPath.reset(); revealPath.addCircle(origin.x,origin.y,radius*p,Path.Direction.CW)
+        canvas.save(); canvas.clipPath(revealPath)
+        canvas.drawColor(fill.color)
+        layout?.let { text ->
             canvas.save();canvas.translate(32*d,(height-text.height)/2f);text.draw(canvas);canvas.restore()
         }
+        canvas.restore()
         if(isAttachedToWindow) postInvalidateOnAnimation()
     }
 }

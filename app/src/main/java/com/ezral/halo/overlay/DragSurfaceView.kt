@@ -9,7 +9,7 @@ import com.ezral.halo.core.*
 import kotlin.math.*
 
 /** The original input window retains the gesture while this single surface follows either edge. */
-internal class DragSurfaceView(context:Context,private val track:Track,private val circle:Boolean,private val reduced:Boolean):View(context) {
+internal class DragSurfaceView(context:Context,private val track:Track,private val circle:Boolean,private val reduced:Boolean,private val textMotion:Boolean=true):View(context) {
     private val d=resources.displayMetrics.density
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private val path=Path();private val ink=Rect()
@@ -48,7 +48,7 @@ internal class DragSurfaceView(context:Context,private val track:Track,private v
         points=FloatArray(a.size) { a[it]+(b[it]-a[it])*mix }
         SurfaceContour.path(path,points)
         val tx=edge+(if(side==DockSide.LEFT) 22 else -22)*d
-        val startX=if(circle) free.centerX() else free.left+42*d
+        val startX=if(circle) free.centerX() else free.left+(if(track.definition.hoursEnabled) 54 else 42)*d
         text=PointF(startX+(tx-startX)*mix,cy)
     }
     override fun onDraw(canvas:Canvas) {
@@ -60,13 +60,13 @@ internal class DragSurfaceView(context:Context,private val track:Track,private v
         updateShape()
         paint.color=HaloGlass.color(track.definition.color.toInt());canvas.drawPath(path,paint)
         paint.color=HaloGlass.foreground(track.definition.color.toInt());paint.typeface=digits
-        paint.textSize=(if(circle || mix>.5f) 17 else 20)*d;paint.textAlign=Paint.Align.CENTER
-        val time=formatTime(track.session?.remaining(now) ?: 0)
+        paint.textSize=(if(circle || mix>.5f) 17 else if(track.definition.hoursEnabled) 16 else 20)*d;paint.textAlign=Paint.Align.CENTER
+        val time=formatTime(track.session?.remaining(now) ?: 0, track.definition.hoursEnabled)
         paint.getTextBounds("0123456789",0,10,ink)
         val baseline=text.y-(ink.top+ink.bottom)/2f
         if(circle || mix>.5f) {
             val parts=time.split(":");val gap=ink.height()+6*d
-            canvas.drawText(parts[0],text.x,baseline-gap/2,paint);canvas.drawText(parts[1],text.x,baseline+gap/2,paint)
+            parts.forEachIndexed { index, part -> canvas.drawText(part,text.x,baseline+(index-(parts.size-1)/2f)*gap,paint) }
         } else canvas.drawText(time,text.x,baseline,paint)
         if(!circle && mix<.7f) {
             val scale=(1-mix/.7f).coerceIn(0f,1f)
@@ -80,7 +80,7 @@ internal class DragSurfaceView(context:Context,private val track:Track,private v
         if(circle && mix<.02f) {
             labelPath.reset();labelPath.addCircle(free.centerX(),free.centerY(),59*d,Path.Direction.CW)
             labelPaint.color=HaloGlass.color(track.definition.color.toInt())
-            label.draw(canvas,labelPath,track.overlayLabel(),(now-born)%6000,(2*Math.PI*59*d/6).toFloat(),true,reduced,170*d)
+            label.draw(canvas,labelPath,track.overlayLabel(),(now-born)%6000,(2*Math.PI*59*d/6).toFloat(),true,reduced || !textMotion,170*d)
         }
         if(isAttachedToWindow && (mix!=target || circle && !reduced || track.session?.status==Status.RUNNING)) postInvalidateOnAnimation()
     }

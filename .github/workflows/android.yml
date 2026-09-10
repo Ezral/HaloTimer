@@ -68,7 +68,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - name: Compile test APKs before booting the emulator
-        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace -Pkotlin.compiler.execution.strategy=in-process
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -80,6 +80,9 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          # The runner's deprecated swiftshader_indirect default crashes in the
+          # host RenderThread during IME/dialog transitions (kernel SIGSEGV).
+          emulator-options: -no-window -gpu lavapipe -no-snapshot -noaudio -no-boot-anim
           script: bash .github/scripts/native-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()

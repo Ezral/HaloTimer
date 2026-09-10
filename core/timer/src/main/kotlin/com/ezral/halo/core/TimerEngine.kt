@@ -6,6 +6,7 @@ import kotlin.math.ceil
 
 const val MIN_MS = 1_000L
 const val MAX_MS = 5_999_000L
+const val MAX_HOURS_MS = 359_999_000L
 
 @Serializable enum class Status { READY, RUNNING, PAUSED, COMPLETED, INTERRUPTED }
 @Serializable enum class AlertStyle { BREATHE, ORBIT, PING_PONG, DOUBLE_PONG }
@@ -19,10 +20,13 @@ const val MAX_MS = 5_999_000L
     val active: Boolean = id == 0,
     val sequence: Boolean = false,
     val durationMs: Long = 300_000L,
+    val hoursEnabled: Boolean = false,
     val steps: List<Step> = listOf(Step("Step 1", 30_000L)),
     val color: Long = listOf(0xFFAA9CFF, 0xFF57DDB4, 0xFFFFBA77)[id],
     val alert: AlertStyle = AlertStyle.ORBIT,
     val haptic: HapticStyle = HapticStyle.DOUBLE_TAP,
+    val vibrationEnabled: Boolean = true,
+    val soundEnabled: Boolean = false,
     val morse: String = "TIME",
     val hapticRepeat: HapticRepeat = HapticRepeat.ONCE,
     val customRepeatCount: Int = 2,
@@ -35,12 +39,15 @@ const val MAX_MS = 5_999_000L
     val x: Float = 0.82f,
     val y: Float = 0.20f + id * 0.16f,
 ) {
+    fun maxDurationMs() = if (hoursEnabled) MAX_HOURS_MS else MAX_MS
+    fun vibrates() = vibrationEnabled && haptic != HapticStyle.OFF
+    fun alertPattern() = if (haptic == HapticStyle.OFF) HapticStyle.DOUBLE_TAP else haptic
     fun runSteps() = if (sequence) steps else listOf(Step(name, durationMs))
     fun error(): String? = when {
         name.isBlank() || name.codePointCount(0, name.length) > 24 -> "Use a name of 1–24 characters"
-        durationMs !in MIN_MS..MAX_MS -> "Duration must be 00:01–99:59"
+        durationMs !in MIN_MS..maxDurationMs() -> if (hoursEnabled) "Duration must be 00:00:01–99:59:59" else "Enable Hours for durations above 99:59"
         steps.size !in 1..50 -> "Use 1–50 steps"
-        steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..MAX_MS } -> "Check step names and durations"
+        steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..maxDurationMs() } -> "Check step names and durations"
         hapticRepeat == HapticRepeat.CUSTOM && customRepeatCount !in 1..99 -> "Use 1–99 vibration repeats"
         hapticRepeat == HapticRepeat.TIMED && repeatDurationMs !in 1_000..3_600_000 -> "Use a vibration duration of 1–3600 seconds"
         haptic == HapticStyle.MORSE -> Morse.validate(morse)
@@ -77,6 +84,8 @@ const val MAX_MS = 5_999_000L
     val repeat: HapticRepeat = HapticRepeat.ONCE,
     val repeatCount: Int = 1,
     val repeatDurationMs: Long = 30_000,
+    val vibrationEnabled: Boolean = true,
+    val soundEnabled: Boolean = false,
 )
 @Serializable data class Snapshot(
     val version: Int = 1,
@@ -112,8 +121,9 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             while (now >= s.deadlineMs) {
                 val final = s.index == s.steps.lastIndex
                 events += AlertEvent("${s.id}:${s.index}", track.definition.id, s.deadlineMs, final,
-                    track.definition.haptic, track.definition.morse, track.definition.hapticRepeat,
-                    track.definition.customRepeatCount, track.definition.repeatDurationMs)
+                    track.definition.alertPattern(), track.definition.morse, track.definition.hapticRepeat,
+                    track.definition.customRepeatCount, track.definition.repeatDurationMs,
+                    track.definition.vibrates(), track.definition.soundEnabled)
                 if (final) {
                     // A final alert remains animated until the user dismisses/resets it.
                     s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = s.deadlineMs)
@@ -171,6 +181,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 val structural = d.sequence != t.definition.sequence || d.durationMs != t.definition.durationMs || d.steps != t.definition.steps
                 when {
                     d.error() != null -> { error = d.error(); t }
+                    !d.hoursEnabled && t.session?.let { session -> session.remaining(now) > MAX_MS || session.steps.any { it.durationMs > MAX_MS } } == true -> { error = "Keep Hours enabled until this timer is reset"; t }
                     structural && t.session != null -> { error = "Reset this timer before editing its steps"; t }
                     d.active != t.definition.active -> { error = "Use the Active switch"; t }
                     else -> t.copy(definition = d)
@@ -181,13 +192,13 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 if (!t.definition.active || command.target.session != s?.id || (s != null && command.target.index != s.index)) t
                 else if (s == null) {
                     val d = t.definition
-                    if (!d.sequence) t.copy(definition = d.copy(durationMs = (d.durationMs + command.deltaMs).coerceIn(MIN_MS, MAX_MS)))
+                    if (!d.sequence) t.copy(definition = d.copy(durationMs = (d.durationMs + command.deltaMs).coerceIn(MIN_MS, t.definition.maxDurationMs())))
                     else t.copy(definition = d.copy(steps = d.steps.mapIndexed { i, step ->
-                        if (i == command.target.index) step.copy(durationMs = (step.durationMs + command.deltaMs).coerceIn(MIN_MS, MAX_MS)) else step
+                        if (i == command.target.index) step.copy(durationMs = (step.durationMs + command.deltaMs).coerceIn(MIN_MS, t.definition.maxDurationMs())) else step
                     }))
                 } else if (s.status == Status.RUNNING || s.status == Status.PAUSED) {
                     val old = s.remaining(now)
-                    val remaining = (old + command.deltaMs).coerceIn(MIN_MS, MAX_MS)
+                    val remaining = (old + command.deltaMs).coerceIn(MIN_MS, t.definition.maxDurationMs())
                     t.copy(session = s.copy(remainingMs = remaining, deadlineMs = now + remaining,
                         stepDurationMs = s.stepDurationMs - old + remaining, revision = s.revision + 1))
                 } else t
@@ -214,9 +225,20 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
     }
 }
 
-fun formatTime(ms: Long): String {
+/** One formatter shared by all surfaces; rounding happens before extracting fields. */
+fun formatTime(ms: Long, hoursEnabled: Boolean = false): String {
     val seconds = ceil(ms.coerceAtLeast(0) / 1_000.0).toLong()
-    return "%02d:%02d".format(java.util.Locale.ROOT, seconds / 60, seconds % 60)
+    return if (hoursEnabled) "%02d:%02d:%02d".format(java.util.Locale.ROOT, seconds / 3600, seconds / 60 % 60, seconds % 60)
+    else "%02d:%02d".format(java.util.Locale.ROOT, seconds / 60, seconds % 60)
+}
+/** Field edits preserve the other units; seconds/minutes naturally carry or borrow. */
+fun replaceTimeField(ms: Long, unitMs: Long, number: Long, hoursEnabled: Boolean): Long {
+    val current = when (unitMs) {
+        3_600_000L -> ms / unitMs
+        60_000L -> if (hoursEnabled) ms / unitMs % 60 else ms / unitMs
+        else -> ms / 1000 % 60
+    }
+    return (ms + (number - current) * unitMs).coerceIn(MIN_MS, if (hoursEnabled) MAX_HOURS_MS else MAX_MS)
 }
 fun holdStep(heldMs: Long): Long = when { heldMs >= 8_000 -> 300_000; heldMs >= 3_000 -> 60_000; else -> 30_000 }
 val pourOver = listOf(Step("Blooming", 30_000), Step("Slow pour over", 120_000))

@@ -1,10 +1,10 @@
-# HaloTimer · v1.0
+# HaloTimer · v1.1
 
 A quiet Android timer that stays with you while you use your phone.
 
 HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-[Quick start](docs/QUICK_START.md) · [v1.0 notes](docs/releases/V1.0.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
+[Quick start](docs/QUICK_START.md) · [v1.1 notes](docs/releases/V1.1.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
 ## Get started
 
@@ -19,7 +19,7 @@ Requires **Android 8.0 or newer**. Version 1.0 is the product milestone; the dow
 
 - **Three independent tracks.** Rename Timer A, B and C, switch between document-style tabs, and activate each track separately. Mix standalone timers and sequences in any combination.
 - **Whole-minute and whole-second controls.** Type, swipe vertically, scroll with a mouse, or use the accessible plus/minus actions. Seconds carry and borrow across minute boundaries: `00:59 ↔ 01:00`.
-- **Flexible duration.** Each timer or sequence step supports `00:01–99:59`. Quick presets set a single timer to 1, 5, 15 or 25 minutes.
+- **Flexible duration.** Each timer or sequence step supports `00:01–99:59` by default. Enable **Hours** on a timer to use `00:00:01–99:59:59`, including its sequence steps; HH:MM:SS appears across the menu, pill and dock. Turning Hours off never truncates a longer duration. Quick presets set a single timer to 1, 5, 15 or 25 minutes.
 - **Named sequences.** Add up to 50 steps with independent names and durations. Halo advances automatically, shows the current step and resets that track's edge progress for each step.
 - **Editable examples.** Pour-over includes blooming and slow pouring. Steak includes searing, flipping, the fatty side and resting. Loading an example asks before replacing your current steps.
 - **Independent playback.** Pause, resume, stop or restart one timer while the others continue. Adjust a running timer by 30 seconds from its menu.
@@ -31,7 +31,7 @@ Timer names support 1–24 characters; step names support 1–60 characters.
 
 The halo uses full-display coordinates, including the status and navigation bar regions. Three 4dp colored tracks are separated by 2dp gaps. Supported Android versions provide physical corner radii for the light's path.
 
-Each track has its own color and glow strength. Choose from the palette—including bright red, strong blue and purple—or enter a custom `#RRGGBB` color. Palette colors already used by another active track are marked unavailable; use distinct custom colors to keep tracks easy to distinguish.
+Each track has its own color and glow strength. Choose from the palette—including bright red, strong blue and purple—or use the custom hue/saturation/brightness palette (hex input is optional). Palette colors already used by another active track are marked unavailable; use distinct custom colors to keep tracks easy to distinguish.
 
 When time is up, choose one of four continuous animations:
 
@@ -42,7 +42,7 @@ When time is up, choose one of four continuous animations:
 | Ping-pong | A light travels along the perimeter and reverses direction. |
 | Double pong | Two lights travel and bounce around the perimeter. |
 
-Final edge alerts continue until dismissed or stopped. **Preview edge alert** lets you try a style without starting a timer or leaving the menu. **Reduce motion** provides a quieter visual alternative.
+Final edge alerts continue until dismissed or stopped. **Preview edge alert** lets you try a style without starting a timer or leaving the menu. **Text motion on timer dock** controls the dock label independently of edge alerts and surface transitions.
 
 ## Floating pill and edge dock
 
@@ -59,14 +59,14 @@ The pill contains four icons:
 
 Drag the countdown area to move the pill. Contact with either screen edge starts a controlled merge animation before you lift your finger. Release to form a broad, shallow dock. Pull inward to separate it into a circle; while still holding, move to the opposite edge to dock again.
 
-The dock centers minutes above seconds. Its single bold label follows the dock's curved outline, with letters rotating along the path and clipping at the physical edge. A held full circle uses a continuous circular path. Sequence labels show **current step · timer name**; standalone labels show the timer name. Long labels are shortened to fit.
+The dock centers minutes above seconds, or hours / minutes / seconds when Hours is enabled. Its single bold label follows the dock's curved outline, with letters rotating along the path and clipping at the physical edge. A held full circle uses a continuous circular path. Sequence labels show **current step · timer name**; standalone labels show the timer name. Long labels are shortened to fit.
 
 Long-press the dock to reveal four evenly spaced action bubbles. Slide to Play/Pause, Reset, Stop or Settings and release to select. Release away from a target to cancel. The bubbles retract into the dock with a short exit animation.
 
 ### Name and visibility options
 
 - **Show timer name:** display the name just outside the pill's bottom-left edge, in the pill's color.
-- **Move name around pill:** move that one label around the outside instead of holding it below the pill. This needs Show timer name enabled.
+- **Text rotates around pill:** move that one label around the outside instead of holding it below the pill. This needs Show timer name enabled.
 - **Floating control:** show or hide the control for a track from its menu. This setting does not stop the timer or edge light; the pill itself has Stop instead of Hide.
 - **Show all floating controls:** restore controls from Halo or the ongoing notification.
 
@@ -74,7 +74,7 @@ Entering the Halo menu hides floating controls. Timers normally continue; enable
 
 ## Vibration, including your own Morse text
 
-Choose **Off**, **Double tap** or **Morse** per timer. Morse text is entered in a popup; saving updates its dot-and-dash display automatically. Use A–Z, 0–9 and spaces, up to 24 characters and a maximum encoded pattern length of 20 seconds.
+Choose **Double tap** or **Morse** per timer, with separate **Vibration** and **Sound** switches. Sound is off by default; the soft 660 Hz tone follows the same pulse lengths, silent gaps and repeat limits. It uses the alarm volume and requests transient audio focus; it does not override device volume or Do Not Disturb. Morse text is entered in a popup; saving updates its dot-and-dash display automatically. Use A–Z, 0–9 and spaces, up to 24 characters and a maximum encoded pattern length of 20 seconds.
 
 Final-alert vibration supports:
 
@@ -97,7 +97,7 @@ In the **Completion screen** card, control:
 - Bold or regular text.
 - Left or center alignment.
 
-Tap the completion page to close it early. Closing it leaves the final edge alert active; use Stop or Dismiss to end that alert. A finished session does not repeatedly reopen the page.
+On timeout or an early tap, the color contracts back toward the pill/dock. The menu preview wraps to fit text size, timer name and sequence step. Tap the completion page to close it early. Closing it leaves the final edge alert active; use Stop or Dismiss to end that alert. A finished session does not repeatedly reopen the page.
 
 ## Menu, themes and notifications
 

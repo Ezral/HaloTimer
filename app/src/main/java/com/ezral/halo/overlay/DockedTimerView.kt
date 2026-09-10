@@ -55,11 +55,10 @@ class DockedTimerView(context: Context) : View(context) {
         paint.textSize=(16+2*blend)*d; paint.textAlign=Paint.Align.CENTER
         val dockTextX=edge+(if(left) 22 else -22)*d
         val textX=dockTextX+(cx-dockTextX)*blend
-        val parts=formatTime(s.remaining(now)).split(":")
+        val parts=formatTime(s.remaining(now), t.definition.hoursEnabled).split(":")
         paint.getTextBounds("0123456789",0,10,ink)
         val spacing=ink.height()+6*d; val baseline=cy-(ink.top+ink.bottom)/2f
-        canvas.drawText(parts[0],textX,baseline-spacing/2,paint)
-        canvas.drawText(parts[1],textX,baseline+spacing/2,paint)
+        parts.forEachIndexed { index, part -> canvas.drawText(part,textX,baseline+(index-(parts.size-1)/2f)*spacing,paint) }
         textPaint.color=HaloGlass.color(t.definition.color.toInt())
         labelPath.reset()
         val circle=fullCircle || blend>=.98f
