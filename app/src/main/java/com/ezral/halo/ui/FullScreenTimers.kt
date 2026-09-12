@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,6 +95,12 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     onPrimary: () -> Unit, onReset: () -> Unit, onStop: () -> Unit) {
     val d = track.definition; val s = track.session
     val accent = Color(d.color)
+    // Pale custom colors still need legible large digits in the light theme.
+    val digitColor = remember(d.color, dark, foreground) {
+        val surface = ColorUtils.compositeColors(ColorUtils.setAlphaComponent(d.color.toInt(), if(dark) 23 else 14),
+            if(dark) 0xFF0B0D13.toInt() else 0xFFF6F7FC.toInt())
+        if(ColorUtils.calculateContrast(d.color.toInt(), surface) >= 3.0) accent else foreground
+    }
     val colors = if (d.linePalette == LinePalette.SOLID) listOf(accent, accent) else d.linePalette.colors.map { Color(it) }
     val brush = remember(colors) { Brush.sweepGradient(colors + colors.first()) }
     var motion by remember(s?.id) { mutableStateOf<CompletionMotion?>(null) }
@@ -145,7 +153,7 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     val compact = count == 3 && landscape
     val idealSize = if (count == 1) (if(d.hoursEnabled) 58 else 88) else if (count == 2) (if(d.hoursEnabled) 40 else 64) else (if(d.hoursEnabled) 24 else 36)
     val numberSize = minOf(idealSize.toFloat(), width.value*panel.width / ((if(d.hoursEnabled) 8 else 5)*.65f*density.fontScale))
-    Box(Modifier.offset(width*(panel.x-panel.width/2), height*(panel.y-panel.height/2)).width(width*panel.width).height(height*panel.height).drawWithContent {
+    Box(Modifier.offset(width*(panel.x-panel.width/2), height*(panel.y-panel.height/2)).width(width*panel.width).height(height*panel.height).semantics { isTraversalGroup = true }.drawWithContent {
         if(completion>0) clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(center=Offset(size.width/2,size.height/2), radius=hypot(width.toPx(),height.toPx())*completion)) }) { this@drawWithContent.drawContent() }
         else drawContent()
     }, contentAlignment=Alignment.Center) {
@@ -162,7 +170,7 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
                 color=foreground, fontWeight=FontWeight.SemiBold, fontSize=(if(count==3) 13 else 19).sp,
                 maxLines=if(compact) 1 else 2, overflow=TextOverflow.Ellipsis, textAlign=TextAlign.Center)
             Text(formatTime(s?.remaining(now) ?: d.runSteps().first().durationMs,d.hoursEnabled), fontFamily=CountdownMono,
-                fontWeight=FontWeight.Bold, fontSize=numberSize.sp, color=accent, maxLines=1,
+                fontWeight=FontWeight.Bold, fontSize=numberSize.sp, color=digitColor, maxLines=1,
                 modifier=Modifier.semantics { contentDescription="${d.name} countdown" })
             Text(if(s?.repetitions != null && s.repetitions != 1) s.roundLabel() else s?.status?.name ?: "READY", color=foreground.copy(alpha=.65f), fontSize=11.sp)
             Row(horizontalArrangement=Arrangement.Center) {

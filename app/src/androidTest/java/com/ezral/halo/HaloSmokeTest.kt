@@ -40,6 +40,10 @@ class HaloSmokeTest {
             // Restore the launch identity for ActivityScenario before ending its activity.
             activity.intent=launchIntent;activity.finish()
         } }
+        // finish() is asynchronous; let DESTROYED reach ActivityScenario before
+        // its rule also closes the activity, rather than racing at STARTED.
+        rule.waitUntil(5_000) { activity.isDestroyed }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     private fun shell(command: String) {
