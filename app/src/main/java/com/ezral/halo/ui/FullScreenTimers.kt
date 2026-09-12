@@ -1,6 +1,5 @@
 package com.ezral.halo.ui
 
-import android.app.Activity
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.compose.foundation.Canvas
@@ -17,7 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,7 +55,7 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
         while (isActive) { c.execute(Command.Tick); delay(200) }
     } }
-    val window = (LocalContext.current as? Activity)?.window
+    val window = LocalActivity.current?.window
     val awake = prefs.keepScreenOn && tracks.any { it.session?.status == Status.RUNNING }
     DisposableEffect(window, awake) {
         if (awake) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

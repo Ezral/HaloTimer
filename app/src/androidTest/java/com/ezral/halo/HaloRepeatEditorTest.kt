@@ -18,7 +18,7 @@ class HaloRepeatEditorTest {
     }
     @After fun reset() { runBlocking { withContext(Dispatchers.Main) {
         c.execute(Command.StopAll)
-        (0..2).forEach { c.execute(Command.Edit(Definition(it))) }
+        (0..2).forEach { c.execute(Command.Activate(it, it == 0)); c.execute(Command.Edit(Definition(it))) }
         c.preferences.fullScreenMode(false); c.preferences.fullScreenMask(7); c.preferences.keepScreenOn(false)
     } } }
     @Test fun typingReplacesTimeAndRoundPaletteChoicesPersist() {

@@ -57,7 +57,7 @@ class HaloFullScreenTest {
         shell("pm grant ${app.packageName} android.permission.POST_NOTIFICATIONS")
         runBlocking { withContext(Dispatchers.Main) {
             c.initialize();c.execute(Command.StopAll)
-            listOf("Gym rest","Pour over","Stretch").forEachIndexed { id,name -> c.execute(Command.Edit(Definition(id,name=name,active=true,durationMs=600000,color=listOf(0xFF39EBC7L,0xFFFF7452L,0xFF5260FFL)[id],haptic=HapticStyle.OFF))) }
+            listOf("Gym rest","Pour over","Stretch").forEachIndexed { id,name -> c.execute(Command.Activate(id,true)); c.execute(Command.Edit(Definition(id,name=name,active=true,durationMs=600000,color=listOf(0xFF39EBC7L,0xFFFF7452L,0xFF5260FFL)[id],haptic=HapticStyle.OFF))) }
             c.preferences.theme("Dark");c.preferences.fullScreenMask(1);c.preferences.completionEnabled(true);c.preferences.completionSeconds(4)
         } }
         val scenario=ActivityScenario.launch(FullScreenActivity::class.java)
@@ -93,7 +93,7 @@ class HaloFullScreenTest {
         } finally {
             runBlocking { withContext(Dispatchers.Main) {
                 c.execute(Command.StopAll); app.stopService(Intent(app,HaloRuntimeService::class.java)); c.haptics.cancelAll()
-                (0..2).forEach { c.execute(Command.Edit(Definition(it))) }
+                (0..2).forEach { c.execute(Command.Activate(it, it == 0)); c.execute(Command.Edit(Definition(it))) }
                 c.preferences.fullScreenMode(false);c.preferences.fullScreenMask(7);c.preferences.completionEnabled(false);c.preferences.completionSeconds(4);c.preferences.theme("System")
             } };scenario.close()
         }
