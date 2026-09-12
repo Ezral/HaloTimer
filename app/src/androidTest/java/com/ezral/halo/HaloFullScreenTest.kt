@@ -53,9 +53,11 @@ class HaloFullScreenTest {
     }
     private fun tap(description:String) {
         await("Visible control: $description") { node(description)!=null }
-        var target=node(description)!!
-        while(!target.isClickable && target.parent!=null) target=target.parent
-        assertTrue("Click $description",target.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        val target=node(description)!!
+        val bounds=android.graphics.Rect();target.getBoundsInScreen(bounds)
+        assertFalse("Nonempty touch target: $description",bounds.isEmpty)
+        // Exercise the same touch path a user uses, including Compose's wrapper nodes.
+        shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
     }
     private fun capture(name:String) {
         SystemClock.sleep(400);dismissEducation();SystemClock.sleep(150)
