@@ -56,6 +56,8 @@ Starting from the menu opens this display when full-screen mode is selected. The
 
 Enabled completion color animations expand and shrink inside their own section, leaving other timers visible. Repeating rounds show a round-complete message; the last round shows the final timer-complete message. Very fast repeats coalesce visual reveals already in progress. **Keep screen awake** is optional and off by default; it applies only while a displayed timer runs.
 
+The display's menu opens its controls immediately: select timers, choose Pizza or Split for three timers, show/hide names and playback controls, adjust number size, line thickness, line spacing and alert speed, and set an edge inset. Phone corner matching is on by default and uses reported corner radii and curved-glass insets; a manual corner radius is available for phones that need adjustment. Each section has an independent inset perimeter, so its animation cannot paint over a neighboring section's line.
+
 ## Floating pill and edge dock
 
 The controls use one opaque, solid surface matching the timer's line color, without glass, gradients or outlines. Countdown digits use **JetBrains Mono** for fixed spacing; menu and label typography uses **Poppins**.

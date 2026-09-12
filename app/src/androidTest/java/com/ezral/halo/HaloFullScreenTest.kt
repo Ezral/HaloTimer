@@ -75,6 +75,8 @@ class HaloFullScreenTest {
         runBlocking { withContext(Dispatchers.Main) {
             c.initialize();c.execute(Command.StopAll)
             listOf("Gym rest","Pour over","Stretch").forEachIndexed { id,name -> c.execute(Command.Activate(id,true)); c.execute(Command.Edit(Definition(id,name=name,active=true,durationMs=600000,color=listOf(0xFF39EBC7L,0xFFFF7452L,0xFF5260FFL)[id],haptic=HapticStyle.OFF))) }
+            c.preferences.fullScreenLayout("Pizza");c.preferences.fullScreenControls(true);c.preferences.fullScreenLineDp(4);c.preferences.fullScreenGapDp(3)
+            c.preferences.fullScreenAutoCorners(true);c.preferences.fullScreenInsetDp(4);c.preferences.fullScreenNumberPercent(100);c.preferences.fullScreenNames(true)
             c.preferences.dismissAllOnMenu(false);c.preferences.theme("Dark");c.preferences.fullScreenMask(1);c.preferences.completionEnabled(true);c.preferences.completionSeconds(4)
         } }
         val scenario=ActivityScenario.launch(FullScreenActivity::class.java)
@@ -89,6 +91,17 @@ class HaloFullScreenTest {
             await("Light theme") { c.prefs.value.theme=="Light" };capture("three-light")
             runBlocking { c.preferences.theme("Dark") }
             await("Dark theme") { c.prefs.value.theme=="Dark" }
+            tap("Full-screen display controls")
+            tap("Show controls on timers")
+            await("Playback controls can be hidden") { !c.prefs.value.fullScreenControls }
+            tap("Close display controls")
+            await("Hidden controls leave a clean display") { node("Start Gym rest full screen")==null };capture("clean")
+            tap("Full-screen display controls");tap("Show controls on timers");tap("Close display controls")
+            runBlocking { c.preferences.fullScreenLayout("Split");c.preferences.fullScreenLineDp(8);c.preferences.fullScreenGapDp(6)
+                c.preferences.fullScreenAutoCorners(false);c.preferences.fullScreenCornerDp(40);c.preferences.fullScreenNumberPercent(125) }
+            await("Split layout settings applied") { c.prefs.value.fullScreenLayout=="Split" };capture("three-split")
+            runBlocking { c.preferences.fullScreenLayout("Pizza") }
+            await("Pizza layout restored") { c.prefs.value.fullScreenLayout=="Pizza" }
             tap("Start Gym rest full screen")
             await("Starts only selected timer") { c.state.value.tracks[0].session?.status==Status.RUNNING }
             assertNull(c.state.value.tracks[1].session)
@@ -128,6 +141,8 @@ class HaloFullScreenTest {
             runBlocking { withContext(Dispatchers.Main) {
                 c.execute(Command.StopAll); app.stopService(Intent(app,HaloRuntimeService::class.java)); c.haptics.cancelAll()
                 (0..2).forEach { c.execute(Command.Activate(it, it == 0)); c.execute(Command.Edit(Definition(it))) }
+                c.preferences.fullScreenLayout("Pizza");c.preferences.fullScreenControls(true);c.preferences.fullScreenLineDp(4);c.preferences.fullScreenGapDp(3)
+                c.preferences.fullScreenAutoCorners(true);c.preferences.fullScreenCornerDp(28);c.preferences.fullScreenInsetDp(4);c.preferences.fullScreenNumberPercent(100)
                 c.preferences.dismissAllOnMenu(false);c.preferences.fullScreenMode(false);c.preferences.fullScreenMask(7);c.preferences.completionEnabled(false);c.preferences.completionSeconds(4);c.preferences.theme("System")
             } };scenario.close()
         }

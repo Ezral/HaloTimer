@@ -32,7 +32,11 @@ data class Preferences(val theme: String = "System", val reducedMotion: Boolean 
     val completionEnabled: Boolean = true, val completionSeconds: Int = 4,
     val completionTextSp: Int = 28, val completionBold: Boolean = true,
     val completionAlignment: String = "Center", val dockTextMotion: Boolean = true,
-    val fullScreenMode: Boolean = false, val fullScreenMask: Int = 7, val keepScreenOn: Boolean = false)
+    val fullScreenMode: Boolean = false, val fullScreenMask: Int = 7, val keepScreenOn: Boolean = false,
+    val fullScreenLayout: String = "Pizza", val fullScreenControls: Boolean = true,
+    val fullScreenLineDp: Int = 4, val fullScreenInsetDp: Int = 4,
+    val fullScreenGapDp: Int = 3, val fullScreenAutoCorners: Boolean = true, val fullScreenCornerDp: Int = 28,
+    val fullScreenNumberPercent: Int = 100, val fullScreenNames: Boolean = true, val fullScreenSpeedPercent: Int = 100)
 class PreferenceStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val motionKey = booleanPreferencesKey("reduced_motion")
@@ -47,13 +51,37 @@ class PreferenceStore(private val context: Context) {
     private val fullScreenKey = booleanPreferencesKey("full_screen_mode")
     private val fullScreenMaskKey = intPreferencesKey("full_screen_mask")
     private val keepScreenKey = booleanPreferencesKey("full_screen_keep_awake")
+    private val fullScreenLayoutKey = stringPreferencesKey("full_screen_layout")
+    private val fullScreenControlsKey = booleanPreferencesKey("full_screen_controls")
+    private val fullScreenLineKey = intPreferencesKey("full_screen_line_dp")
+    private val fullScreenInsetKey = intPreferencesKey("full_screen_inset_dp")
+    private val fullScreenGapKey = intPreferencesKey("full_screen_gap_dp")
+    private val fullScreenCornerKey = intPreferencesKey("full_screen_corner_dp")
+    private val fullScreenNumberKey = intPreferencesKey("full_screen_number_percent")
+    private val fullScreenSpeedKey = intPreferencesKey("full_screen_speed_percent")
+    private val fullScreenAutoCornersKey = booleanPreferencesKey("full_screen_auto_corners")
+    private val fullScreenNamesKey = booleanPreferencesKey("full_screen_names")
     val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", false, it[volumeKey] ?: false, it[dismissKey] ?: false,
         it[completionKey] ?: true, (it[secondsKey] ?: 4).coerceIn(1,30),
         (it[textSizeKey] ?: 28).coerceIn(18,48), it[boldKey] ?: true, it[alignKey] ?: "Center", it[dockTextKey] ?: !(it[motionKey] ?: false),
-        it[fullScreenKey] ?: false, (it[fullScreenMaskKey] ?: 7).coerceIn(1,7), it[keepScreenKey] ?: false) }
+        it[fullScreenKey] ?: false, (it[fullScreenMaskKey] ?: 7).coerceIn(1,7), it[keepScreenKey] ?: false,
+        it[fullScreenLayoutKey] ?: "Pizza", it[fullScreenControlsKey] ?: true,
+        (it[fullScreenLineKey] ?: 4).coerceIn(2,10), (it[fullScreenInsetKey] ?: 4).coerceIn(0,24),
+        (it[fullScreenGapKey] ?: 3).coerceIn(0,16), it[fullScreenAutoCornersKey] ?: true, (it[fullScreenCornerKey] ?: 28).coerceIn(0,64),
+        (it[fullScreenNumberKey] ?: 100).coerceIn(75,150), it[fullScreenNamesKey] ?: true, (it[fullScreenSpeedKey] ?: 100).coerceIn(50,200)) }
+    suspend fun fullScreenGapDp(value: Int) { context.settings.edit { it[fullScreenGapKey] = value.coerceIn(0,16) } }
+    suspend fun fullScreenCornerDp(value: Int) { context.settings.edit { it[fullScreenCornerKey] = value.coerceIn(0,64) } }
+    suspend fun fullScreenNumberPercent(value: Int) { context.settings.edit { it[fullScreenNumberKey] = value.coerceIn(75,150) } }
+    suspend fun fullScreenSpeedPercent(value: Int) { context.settings.edit { it[fullScreenSpeedKey] = value.coerceIn(50,200) } }
+    suspend fun fullScreenAutoCorners(value: Boolean) { context.settings.edit { it[fullScreenAutoCornersKey] = value } }
+    suspend fun fullScreenNames(value: Boolean) { context.settings.edit { it[fullScreenNamesKey] = value } }
     suspend fun fullScreenMode(value: Boolean) { context.settings.edit { it[fullScreenKey] = value } }
     suspend fun fullScreenMask(value: Int) { context.settings.edit { it[fullScreenMaskKey] = value.coerceIn(1,7) } }
     suspend fun keepScreenOn(value: Boolean) { context.settings.edit { it[keepScreenKey] = value } }
+    suspend fun fullScreenLayout(value: String) { context.settings.edit { it[fullScreenLayoutKey] = if(value == "Split") "Split" else "Pizza" } }
+    suspend fun fullScreenControls(value: Boolean) { context.settings.edit { it[fullScreenControlsKey] = value } }
+    suspend fun fullScreenLineDp(value: Int) { context.settings.edit { it[fullScreenLineKey] = value.coerceIn(2,10) } }
+    suspend fun fullScreenInsetDp(value: Int) { context.settings.edit { it[fullScreenInsetKey] = value.coerceIn(0,24) } }
     suspend fun completionEnabled(value: Boolean) { context.settings.edit { it[completionKey] = value } }
     suspend fun completionSeconds(value: Int) { context.settings.edit { it[secondsKey] = value.coerceIn(1,30) } }
     suspend fun completionTextSp(value: Int) { context.settings.edit { it[textSizeKey] = value.coerceIn(18,48) } }

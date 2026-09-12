@@ -60,6 +60,8 @@ Under **Timer repetition**, choose **1×**, **∞**, or **Set count** and enter 
 
 Enable **Keep screen awake** if desired. Completion reveals stay inside the finished timer's section. Other timers keep counting. Returning to overlays requires Display over other apps permission.
 
+Tap the full-screen menu icon to adjust its layout, number size, names, controls, line width/spacing, alert speed and screen inset. **Match phone corners** is on by default; turn it off to choose a custom radius. **All settings** returns to the Halo menu.
+
 The last circle in the color palette recalls your saved custom color. Try **Aurora**, **Sunset** or **Electric** for a mixed-color edge. Tap any HRS/MIN/SEC field and type to replace its old digits directly, then press Done.
 
 ## Choose how Halo gets your attention

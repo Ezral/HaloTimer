@@ -2,6 +2,8 @@ package com.ezral.halo.ui
 
 import android.os.SystemClock
 import android.view.WindowManager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +39,7 @@ import com.ezral.halo.overlay.HaloGlass
 import com.ezral.halo.runtime.TimerCoordinator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.hypot
 
 @Composable
@@ -49,6 +52,7 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
     val dark = prefs.theme == "Dark" || prefs.theme == "System" && isSystemInDarkTheme()
     val background = if (dark) Color(0xFF0B0D13) else Color(0xFFF6F7FC)
     val foreground = if (dark) Color(0xFFF4F5FC) else Color(0xFF171B28)
+    var displaySettings by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -67,7 +71,7 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
     MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), typography = HaloTypography) {
         Column(Modifier.fillMaxSize().background(background).safeDrawingPadding().semantics { contentDescription = "Full-screen timer display" }) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onSettings, modifier = Modifier.semantics { contentDescription = "Open timer settings" }) { Text("☰", color = foreground, fontSize = 22.sp) }
+                IconButton(onClick = { displaySettings = true }, modifier = Modifier.semantics { contentDescription = "Full-screen display controls" }) { Text("☰", color = foreground, fontSize = 22.sp) }
                 Text("halo", Modifier.weight(1f), color = foreground, fontWeight = FontWeight.Bold, fontSize = 24.sp)
                 IconButton(onClick = { onStart(tracks.map { it.definition.id }.toSet()) }, enabled = ready && tracks.isNotEmpty(), modifier = Modifier.semantics { contentDescription = "Start displayed timers" }) { Text("▶▶", color = foreground, fontSize = 18.sp) }
                 IconButton(onClick = { c.submit(Command.StopAll) }, enabled = state.tracks.any { it.session != null }, modifier = Modifier.semantics { contentDescription = "Stop all timers" }) { Text("■", color = foreground, fontSize = 20.sp) }
@@ -78,20 +82,81 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
                 TextButton(onClick = onSettings) { Text("Choose active timers in settings") }
             } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val landscape = maxWidth > maxHeight
-                val panels = remember(tracks.size, landscape) { timerPanels(tracks.size, landscape) }
+                val panels = remember(tracks.size, landscape, prefs.fullScreenLayout) { timerPanels(tracks.size, landscape, prefs.fullScreenLayout == "Pizza") }
+                val shape = rememberPhoneShape()
+                val left = (prefs.fullScreenInsetDp + shape.waterfall[0]).dp
+                val top = (prefs.fullScreenInsetDp + shape.waterfall[1]).dp
+                val right = (prefs.fullScreenInsetDp + shape.waterfall[2]).dp
+                val bottom = (prefs.fullScreenInsetDp + shape.waterfall[3]).dp
+                val radii = if(prefs.fullScreenAutoCorners) shape.corners.map { (it-prefs.fullScreenInsetDp).coerceAtLeast(0f) }
+                    else List(4) { prefs.fullScreenCornerDp.toFloat() }
+                val viewportWidth = (maxWidth-left-right).coerceAtLeast(1.dp)
+                val viewportHeight = (maxHeight-top-bottom).coerceAtLeast(1.dp)
+                Box(Modifier.fillMaxSize().absolutePadding(left=left,top=top,right=right,bottom=bottom)) {
                 tracks.forEachIndexed { index, track -> key(track.definition.id) {
-                    TimerSection(track, panels[index], tracks.size, landscape, now, prefs, dark, foreground, maxWidth, maxHeight,
+                    TimerSection(track, panels[index], tracks.size, landscape, now, prefs, dark, foreground, viewportWidth, viewportHeight, radii,
                         onPrimary = { if (track.session?.status == Status.RUNNING) c.submit(Command.Pause(track.definition.id)) else onStart(setOf(track.definition.id)) },
                         onReset = { c.submit(Command.Rewind(track.definition.id)) }, onStop = { c.submit(Command.Reset(track.definition.id)) })
                 } }
+                }
             }
         }
+        if (displaySettings) FullScreenDisplayDialog(c, prefs, state, onSettings) { displaySettings = false }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FullScreenDisplayDialog(c: TimerCoordinator, prefs: Preferences, state: Snapshot, onSettings: () -> Unit, close: () -> Unit) {
+    AlertDialog(onDismissRequest=close, title={ Text("Full-screen display") }, confirmButton={ TextButton(onClick=close,modifier=Modifier.semantics { contentDescription="Close display controls" }) { Text("Done") } },
+        dismissButton={ TextButton(onClick=onSettings) { Text("All settings") } }, text={
+            Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text("Timers", fontWeight=FontWeight.SemiBold)
+                FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) { state.tracks.forEach { t ->
+                    val bit=1 shl t.definition.id
+                    FilterChip(prefs.fullScreenMask and bit != 0, {
+                        val mask=prefs.fullScreenMask xor bit
+                        if(mask!=0) c.scope.launch { c.preferences.fullScreenMask(mask) }
+                    }, { Text(t.definition.name) }, enabled=t.definition.active)
+                } }
+                Text("Three-timer layout", fontWeight=FontWeight.SemiBold)
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("Pizza","Split").forEach { mode ->
+                    FilterChip(prefs.fullScreenLayout==mode, { c.scope.launch { c.preferences.fullScreenLayout(mode) } }, { Text(mode) })
+                } }
+                DisplayToggle("Show controls on timers", prefs.fullScreenControls) { c.scope.launch { c.preferences.fullScreenControls(it) } }
+                DisplayToggle("Show timer names", prefs.fullScreenNames) { c.scope.launch { c.preferences.fullScreenNames(it) } }
+                DisplayToggle("Keep screen awake", prefs.keepScreenOn) { c.scope.launch { c.preferences.keepScreenOn(it) } }
+                DisplaySlider("Number size", prefs.fullScreenNumberPercent, 75..150, "%") { c.scope.launch { c.preferences.fullScreenNumberPercent(it) } }
+                DisplaySlider("Line thickness", prefs.fullScreenLineDp, 2..10, "dp") { c.scope.launch { c.preferences.fullScreenLineDp(it) } }
+                DisplaySlider("Line spacing", prefs.fullScreenGapDp, 0..16, "dp") { c.scope.launch { c.preferences.fullScreenGapDp(it) } }
+                DisplaySlider("Alert speed", prefs.fullScreenSpeedPercent, 50..200, "%") { c.scope.launch { c.preferences.fullScreenSpeedPercent(it) } }
+                DisplayToggle("Match phone corners", prefs.fullScreenAutoCorners) { c.scope.launch { c.preferences.fullScreenAutoCorners(it) } }
+                if(!prefs.fullScreenAutoCorners) DisplaySlider("Corner radius", prefs.fullScreenCornerDp, 0..64, "dp") { c.scope.launch { c.preferences.fullScreenCornerDp(it) } }
+                DisplaySlider("Edge inset", prefs.fullScreenInsetDp, 0..24, "dp") { c.scope.launch { c.preferences.fullScreenInsetDp(it) } }
+
+            }
+        })
+}
+
+@Composable
+private fun DisplayToggle(label:String, value:Boolean, changed:(Boolean)->Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+        Text(label,Modifier.weight(1f));Switch(value,changed,modifier=Modifier.semantics { contentDescription=label })
     }
 }
 
 @Composable
+private fun DisplaySlider(label:String,value:Int,range:IntRange,unit:String,changed:(Int)->Unit) {
+    var draft by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    Text("$label · ${draft.toInt()} $unit")
+    Slider(draft,{draft=it},onValueChangeFinished={changed(draft.toInt())},valueRange=range.first.toFloat()..range.last.toFloat(),
+        modifier=Modifier.semantics { contentDescription=label })
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape: Boolean, now: Long,
-    prefs: Preferences, dark: Boolean, foreground: Color, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp,
+    prefs: Preferences, dark: Boolean, foreground: Color, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp, radii: List<Float>,
     onPrimary: () -> Unit, onReset: () -> Unit, onStop: () -> Unit) {
     val d = track.definition; val s = track.session
     val accent = Color(d.color)
@@ -102,7 +167,6 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
         if(ColorUtils.calculateContrast(d.color.toInt(), surface) >= 3.0) accent else foreground
     }
     val colors = if (d.linePalette == LinePalette.SOLID) listOf(accent, accent) else d.linePalette.colors.map { Color(it) }
-    val brush = remember(colors) { Brush.sweepGradient(colors + colors.first()) }
     var motion by remember(s?.id) { mutableStateOf<CompletionMotion?>(null) }
     var startedAt by remember(s?.id) { mutableLongStateOf(0) }
     var completionText by remember(s?.id) { mutableStateOf("") }
@@ -118,24 +182,24 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     val elapsed = (now - startedAt).coerceAtLeast(0)
     val completion = if (motion?.finished(elapsed) == false) motion!!.progress(elapsed) else 0f
     val density = LocalDensity.current
-    val outline = remember(panel, width, height, density.density) { Path().apply {
-        with(density) { panel.outline.forEachIndexed { i, p -> if(i==0) moveTo(p.x*width.toPx(),p.y*height.toPx()) else lineTo(p.x*width.toPx(),p.y*height.toPx()) } }; close()
-    } }
-    val measure = remember(outline) { PathMeasure().apply { setPath(outline, true) } }
-    val progress = remember(outline) { Path() }
+    val paths = remember(panel,width,height,density.density,prefs.fullScreenLineDp,prefs.fullScreenGapDp,radii) {
+        with(density) { sectionPaths(panel,width.toPx(),height.toPx(),prefs.fullScreenLineDp.dp.toPx(),prefs.fullScreenGapDp.dp.toPx(),radii.map { it.dp.toPx() }) }
+    }
+    val measure = remember(paths) { PathMeasure().apply { setPath(paths.line, true) } }
+    val progress = remember(paths) { Path() }
+    val brush = remember(colors,panel,width,height,density.density) {
+        with(density) { Brush.sweepGradient(colors + colors.first(),center=Offset(panel.x*width.toPx(),panel.y*height.toPx())) }
+    }
     Canvas(Modifier.fillMaxSize()) {
-        val path = outline
+        val path = paths.fill
         drawPath(path, accent.copy(alpha = if (dark) .09f else .055f))
-        drawPath(path, foreground.copy(alpha=.12f), style=Stroke(1.dp.toPx()))
         fun line(start: Float, fraction: Float, alpha: Float = 1f) {
-            val from = ((start%1f)+1f)%1f
-            val to = from + fraction.coerceIn(0f,1f)
-            progress.reset(); measure.getSegment(from*measure.length,minOf(to,1f)*measure.length,progress,true)
-            if(to>1f) measure.getSegment(0f,(to-1f)*measure.length,progress,false)
-            drawPath(progress, brush, alpha=alpha, style=Stroke(4.dp.toPx()))
+            perimeterSegment(measure, progress, start, fraction)
+            clipPath(path) { drawPath(progress, brush, alpha=alpha, style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Butt, join=StrokeJoin.Round)) }
         }
+        line(0f,1f,.14f)
         if(s != null && s.visualUntilMs > now) {
-            val age = (now-s.alertStartedAtMs).coerceAtLeast(0)
+            val age = ((now-s.alertStartedAtMs).coerceAtLeast(0) * (prefs.fullScreenSpeedPercent/100.0)).toLong()
             when(d.alert) {
                 AlertStyle.BREATHE -> line(0f,1f,AlertMotion.breathe(age)/255f)
                 AlertStyle.ORBIT -> line(AlertMotion.orbit(age),.20f)
@@ -150,10 +214,14 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
             drawCircle(accent, hypot(size.width, size.height)*completion, center)
         }
     }
-    val compact = count == 3 && landscape
+    val compact = count == 3 && (landscape || prefs.fullScreenLayout == "Split")
+    val narrow = width.value*panel.width < 144f
     val idealSize = if (count == 1) (if(d.hoursEnabled) 58 else 88) else if (count == 2) (if(d.hoursEnabled) 40 else 64) else (if(d.hoursEnabled) 24 else 36)
-    val numberSize = minOf(idealSize.toFloat(), width.value*panel.width / ((if(d.hoursEnabled) 8 else 5)*.65f*density.fontScale))
-    Box(Modifier.offset(width*(panel.x-panel.width/2), height*(panel.y-panel.height/2)).width(width*panel.width).height(height*panel.height).semantics { isTraversalGroup = true }.drawWithContent {
+    val otherHeight = (if(prefs.fullScreenControls) (if(narrow) 96 else 48) else 0) + (if(prefs.fullScreenNames) 36 else 0) + (if(compact) 20 else 44)
+    val heightLimit = ((height.value*panel.height-otherHeight)/(1.35f*density.fontScale)).coerceAtLeast(18f)
+    val numberSize = minOf(idealSize*prefs.fullScreenNumberPercent/100f, heightLimit,
+        width.value*panel.width / ((if(d.hoursEnabled) 8 else 5)*.65f*density.fontScale))
+    Box(Modifier.absoluteOffset(width*(panel.x-panel.width/2), height*(panel.y-panel.height/2)).width(width*panel.width).height(height*panel.height).semantics { isTraversalGroup = true }.drawWithContent {
         if(completion>0) clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(center=Offset(size.width/2,size.height/2), radius=hypot(width.toPx(),height.toPx())*completion)) }) { this@drawWithContent.drawContent() }
         else drawContent()
     }, contentAlignment=Alignment.Center) {
@@ -166,14 +234,14 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
                 maxLines=if(compact) 4 else 7, overflow=TextOverflow.Ellipsis,
                 modifier=Modifier.fillMaxWidth().clickable { motion?.close(elapsed) }.semantics { contentDescription="${d.name} completion animation. Tap to close." })
         } else Column(horizontalAlignment=Alignment.CenterHorizontally, verticalArrangement=Arrangement.spacedBy(if(compact) 0.dp else 6.dp)) {
-            Text(d.name + (if (d.sequence) " · ${s?.steps?.getOrNull(s.index)?.name ?: d.steps.first().name}" else ""),
+            if(prefs.fullScreenNames) Text(d.name + (if (d.sequence) " · ${s?.steps?.getOrNull(s.index)?.name ?: d.steps.first().name}" else ""),
                 color=foreground, fontWeight=FontWeight.SemiBold, fontSize=(if(count==3) 13 else 19).sp,
                 maxLines=if(compact) 1 else 2, overflow=TextOverflow.Ellipsis, textAlign=TextAlign.Center)
             Text(formatTime(s?.remaining(now) ?: d.runSteps().first().durationMs,d.hoursEnabled), fontFamily=CountdownMono,
                 fontWeight=FontWeight.Bold, fontSize=numberSize.sp, color=digitColor, maxLines=1,
                 modifier=Modifier.semantics { contentDescription="${d.name} countdown" })
             Text(if(s?.repetitions != null && s.repetitions != 1) s.roundLabel() else s?.status?.name ?: "READY", color=foreground.copy(alpha=.65f), fontSize=11.sp)
-            Row(horizontalArrangement=Arrangement.Center) {
+            if (prefs.fullScreenControls) FlowRow(horizontalArrangement=Arrangement.Center,maxItemsInEachRow=if(narrow) 2 else 3) {
                 IconButton(onClick=onPrimary, modifier=Modifier.size(48.dp).semantics { contentDescription="${if(s?.status==Status.RUNNING) "Pause" else "Start"} ${d.name} full screen" }) { Text(if(s?.status==Status.RUNNING) "Ⅱ" else "▶", color=foreground,fontSize=21.sp) }
                 IconButton(onClick=onReset, enabled=s!=null, modifier=Modifier.size(48.dp).semantics { contentDescription="Reset ${d.name} full screen" }) { Text("↺", color=foreground,fontSize=25.sp) }
                 IconButton(onClick=onStop, enabled=s!=null, modifier=Modifier.size(48.dp).semantics { contentDescription="Stop ${d.name} full screen" }) { Text("■", color=foreground,fontSize=20.sp) }
