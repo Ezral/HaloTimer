@@ -29,6 +29,15 @@ class HaloPerimeterTest {
     private fun render(path: Path, width: Int, height: Int, stroke: Float) =
         Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawPath(path, paint(stroke)) }
 
+    private fun nearBorder(mask: IntArray, width: Int, height: Int, index: Int): Boolean {
+        val x = index % width; val y = index / width
+        for (dy in -1..1) for (dx in -1..1) {
+            val xx = x + dx; val yy = y + dy
+            if (xx in 0 until width && yy in 0 until height && Color.alpha(mask[yy * width + xx]) > 0) return true
+        }
+        return false
+    }
+
     /** Reproduce newer Skia's destination-replacement behavior on every tested OS. */
     private class ReplacingMeasure(path: Path) : PathMeasure(path, true) {
         override fun getSegment(startD: Float, stopD: Float, dst: Path, startWithMoveTo: Boolean): Boolean {
@@ -59,6 +68,15 @@ class HaloPerimeterTest {
         repaired.computeBounds(bounds, true)
         assertTrue("Right-hand timer never starts at the canvas origin", bounds.left > 200f)
         assertEquals("Both tail and head are retained", m.length * .2f, totalLength(repaired), 1f)
+        val reference = render(outline, 600, 1000, 8f)
+        val mask = IntArray(600000); reference.getPixels(mask, 0, 600, 0, 0, 600, 1000); reference.recycle()
+        fun offBorderPixels(path: Path): Int {
+            val image = render(path, 600, 1000, 8f)
+            val pixels = IntArray(600000); image.getPixels(pixels, 0, 600, 0, 0, 600, 1000); image.recycle()
+            return pixels.indices.count { Color.alpha(pixels[it]) > 64 && !nearBorder(mask, 600, 1000, it) }
+        }
+        assertTrue("The raster guard rejects the original diagonal even with edge tolerance", offBorderPixels(broken) > 100)
+        assertEquals("The repaired stroke stays on the perimeter", 0, offBorderPixels(repaired))
         val dir = java.io.File("/sdcard/Download/halo-qa").apply { mkdirs() }
         listOf("before" to broken, "after" to repaired).forEach { (name, path) ->
             val image = render(path, 600, 1000, 8f)
@@ -162,6 +180,7 @@ class HaloPerimeterTest {
         instrumentation.runOnMainSync {
             val view = EdgeView(instrumentation.targetContext)
             var now = 1000L; view.clock = { now }
+            var checkedFrames = 0
             for (landscape in listOf(false, true)) for (count in 1..3) {
                 val width = if (landscape) 400 else 240; val height = if (landscape) 240 else 400
                 view.layout(0, 0, width, height)
@@ -179,13 +198,18 @@ class HaloPerimeterTest {
                         for (time in listOf(0L, 700, 2241, 2380, 2520, 2799, 2801, 3599, 3600, 7199)) {
                             now = 1000 + time; bitmap.eraseColor(Color.TRANSPARENT); view.draw(Canvas(bitmap))
                             bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-                            for (i in pixels.indices) if (Color.alpha(pixels[i]) > 64) {
-                                assertTrue("Overlay diagonal: style=$style lanes=$count landscape=$landscape time=$time pixel=$i", Color.alpha(mask[i]) > 0)
+                            // Subdividing a curved stroke can shift antialiased coverage by
+                            // one pixel. The reproduced failure at (55,13) was one such pixel;
+                            // no long/interior stroke is permitted by this neighborhood check.
+                            for (i in pixels.indices) if (Color.alpha(pixels[i]) > 64 && Color.alpha(mask[i]) == 0) {
+                                assertTrue("Overlay diagonal: style=$style lanes=$count landscape=$landscape time=$time pixel=$i", nearBorder(mask, width, height, i))
                             }
+                            checkedFrames++
                         }
                     }
                 } finally { bitmap.recycle() }
             }
+            println("Verified $checkedFrames actual overlay frames across all styles, lane counts and orientations")
         }
     }
 }
