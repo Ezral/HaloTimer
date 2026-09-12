@@ -30,8 +30,8 @@ internal class CompletionView(context:Context,private val track:Track,private va
     private val motion=CompletionMotion(preferences.completionSeconds*1000L, if(preferences.reducedMotion) 0 else 420)
     private val revealPath=Path()
     private val message=buildString {
-        append("Timer is completed for\n");append(track.definition.name)
-        if(track.definition.sequence) track.session?.let { session -> session.steps.getOrNull(session.index)?.name }?.takeIf { it.isNotBlank() }?.let { append(" · ");append(it) }
+        append(if(track.session?.status == com.ezral.halo.core.Status.RUNNING) "Round ${(track.session?.round ?: 2) - 1} completed\n" else "Timer is completed for\n");append(track.definition.name)
+        if(track.definition.sequence) track.session?.steps?.lastOrNull()?.name?.takeIf { it.isNotBlank() }?.let { append(" · ");append(it) }
     }
     init {
         contentDescription="$message. Tap to close completion screen."

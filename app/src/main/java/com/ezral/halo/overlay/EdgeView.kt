@@ -24,8 +24,9 @@ class EdgeView(context: Context) : View(context) {
     private val gapPx = resources.displayMetrics.density * 2f
     private var cornerRadii = FloatArray(4) { 28 * resources.displayMetrics.density }
     private var geometryCount = -1
+    private val shaders = mutableMapOf<LinePalette, Shader>()
     init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO; setLayerType(LAYER_TYPE_SOFTWARE, null) }
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { geometryCount = -1 }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { geometryCount = -1; shaders.clear() }
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         if (Build.VERSION.SDK_INT >= 31) {
             val positions = intArrayOf(RoundedCorner.POSITION_TOP_LEFT, RoundedCorner.POSITION_TOP_RIGHT,
@@ -74,6 +75,10 @@ class EdgeView(context: Context) : View(context) {
             val m = measures[i]
             paint.strokeWidth = widthDp
             paint.color = track.definition.color.toInt()
+            val palette = track.definition.linePalette
+            paint.shader = if (palette == LinePalette.SOLID) null else shaders.getOrPut(palette) {
+                SweepGradient(width / 2f, height / 2f, (palette.colors + palette.colors.first()).map { it.toInt() }.toIntArray(), null)
+            }
             paint.clearShadowLayer(); paint.alpha = 36
             drawPart(canvas, m, 0f, 1f)
             paint.alpha = 255

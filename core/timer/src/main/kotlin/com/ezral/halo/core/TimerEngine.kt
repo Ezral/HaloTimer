@@ -21,8 +21,11 @@ const val MAX_HOURS_MS = 359_999_000L
     val sequence: Boolean = false,
     val durationMs: Long = 300_000L,
     val hoursEnabled: Boolean = false,
+    val repetitions: Int = 1, // Total rounds; zero means repeat until stopped.
     val steps: List<Step> = listOf(Step("Step 1", 30_000L)),
     val color: Long = listOf(0xFFAA9CFF, 0xFF57DDB4, 0xFFFFBA77)[id],
+    val customColor: Long? = null,
+    val linePalette: LinePalette = LinePalette.SOLID,
     val alert: AlertStyle = AlertStyle.ORBIT,
     val haptic: HapticStyle = HapticStyle.DOUBLE_TAP,
     val vibrationEnabled: Boolean = true,
@@ -45,6 +48,7 @@ const val MAX_HOURS_MS = 359_999_000L
     fun runSteps() = if (sequence) steps else listOf(Step(name, durationMs))
     fun error(): String? = when {
         name.isBlank() || name.codePointCount(0, name.length) > 24 -> "Use a name of 1–24 characters"
+        repetitions !in 0..9999 -> "Use 1–9999 rounds or infinity"
         durationMs !in MIN_MS..maxDurationMs() -> if (hoursEnabled) "Duration must be 00:00:01–99:59:59" else "Enable Hours for durations above 99:59"
         steps.size !in 1..50 -> "Use 1–50 steps"
         steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..maxDurationMs() } -> "Check step names and durations"
@@ -65,6 +69,9 @@ const val MAX_HOURS_MS = 359_999_000L
     val revision: Long = 0,
     val visualUntilMs: Long = 0,
     val alertStartedAtMs: Long = 0,
+    val repetitions: Int = 1,
+    val round: Long = 1,
+    val cycleCompletedAtMs: Long = 0,
 ) {
     fun remaining(now: Long): Long = when (status) {
         Status.RUNNING -> (deadlineMs - now).coerceAtLeast(0)
@@ -119,18 +126,43 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             var s = track.session ?: return@map track
             if (s.status != Status.RUNNING) return@map track
             while (now >= s.deadlineMs) {
-                val final = s.index == s.steps.lastIndex
-                events += AlertEvent("${s.id}:${s.index}", track.definition.id, s.deadlineMs, final,
-                    track.definition.alertPattern(), track.definition.morse, track.definition.hapticRepeat,
+                // Skip whole historical rounds in O(1), even after days of sleep.
+                // The partially adjusted/current round is still reconciled step by step.
+                if (s.index == 0 && s.stepDurationMs == s.steps.first().durationMs) {
+                    val duration = s.steps.sumOf { it.durationMs }
+                    val start = s.deadlineMs - s.stepDurationMs
+                    val available = if (s.repetitions == 0) Long.MAX_VALUE else (s.repetitions - s.round).coerceAtLeast(0)
+                    val skip = ((now - start) / duration).coerceAtMost(available)
+                    if (skip > 0) {
+                        val boundary = start + skip * duration
+                        val d = track.definition
+                        val completedRound = s.round + skip - 1
+                        val skippedId = if (completedRound == 1L) "${s.id}:${s.steps.lastIndex}" else "${s.id}:r$completedRound:${s.steps.lastIndex}"
+                        events += AlertEvent(skippedId, d.id, boundary, false,
+                            d.alertPattern(), d.morse, HapticRepeat.ONCE, vibrationEnabled = d.vibrates(), soundEnabled = d.soundEnabled)
+                        s = s.copy(round = s.round + skip, deadlineMs = s.deadlineMs + skip * duration,
+                            revision = s.revision + skip * s.steps.size, cycleCompletedAtMs = boundary,
+                            visualUntilMs = boundary + 2_000, alertStartedAtMs = boundary)
+                        if (now < s.deadlineMs) break
+                    }
+                }
+                val cycleEnd = s.index == s.steps.lastIndex
+                val final = cycleEnd && s.repetitions != 0 && s.round >= s.repetitions
+                val eventId = if (s.round == 1L) "${s.id}:${s.index}" else "${s.id}:r${s.round}:${s.index}"
+                events += AlertEvent(eventId, track.definition.id, s.deadlineMs, final,
+                    track.definition.alertPattern(), track.definition.morse, if (cycleEnd && !final) HapticRepeat.ONCE else track.definition.hapticRepeat,
                     track.definition.customRepeatCount, track.definition.repeatDurationMs,
                     track.definition.vibrates(), track.definition.soundEnabled)
                 if (final) {
                     // A final alert remains animated until the user dismisses/resets it.
-                    s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = s.deadlineMs)
+                    s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = s.deadlineMs, cycleCompletedAtMs = s.deadlineMs)
                     break
                 }
-                val next = s.steps[s.index + 1].durationMs
-                s = s.copy(index = s.index + 1, deadlineMs = s.deadlineMs + next, stepDurationMs = next,
+                val nextIndex = if (cycleEnd) 0 else s.index + 1
+                val next = s.steps[nextIndex].durationMs
+                s = s.copy(index = nextIndex, round = s.round + if (cycleEnd) 1 else 0,
+                    cycleCompletedAtMs = if (cycleEnd) s.deadlineMs else s.cycleCompletedAtMs,
+                    deadlineMs = s.deadlineMs + next, stepDurationMs = next,
                     remainingMs = next, revision = s.revision + 1, visualUntilMs = s.deadlineMs + 2_000, alertStartedAtMs = s.deadlineMs)
             }
             track.copy(session = s)
@@ -160,7 +192,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 else if (t.session?.status == Status.PAUSED) t.copy(session = t.session.copy(status = Status.RUNNING,
                     deadlineMs = now + t.session.remainingMs, revision = t.session.revision + 1))
                 else if (t.session != null) t // Completed/interrupted require an explicit reset.
-                else t.copy(session = Session(newId(), d.runSteps().map { it.copy() }, deadlineMs = now + d.runSteps().first().durationMs))
+                else t.copy(session = Session(newId(), d.runSteps().map { it.copy() }, deadlineMs = now + d.runSteps().first().durationMs, repetitions = d.repetitions))
             } }
             is Command.Pause -> change(command.id, ::pause)
             is Command.Rewind -> {
@@ -168,7 +200,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                     val steps = t.session?.steps ?: t.definition.runSteps()
                     t.copy(session = Session(newId(), steps, status = Status.PAUSED,
                         deadlineMs = now + steps.first().durationMs, remainingMs = steps.first().durationMs,
-                        stepDurationMs = steps.first().durationMs))
+                        stepDurationMs = steps.first().durationMs, repetitions = t.session?.repetitions ?: t.definition.repetitions))
                 }
                 clear(command.id)
             }
@@ -178,7 +210,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             }
             is Command.Edit -> change(command.definition.id) { t ->
                 val d = command.definition
-                val structural = d.sequence != t.definition.sequence || d.durationMs != t.definition.durationMs || d.steps != t.definition.steps
+                val structural = d.sequence != t.definition.sequence || d.durationMs != t.definition.durationMs || d.steps != t.definition.steps || d.repetitions != t.definition.repetitions
                 when {
                     d.error() != null -> { error = d.error(); t }
                     !d.hoursEnabled && t.session?.let { session -> session.remaining(now) > MAX_MS || session.steps.any { it.durationMs > MAX_MS } } == true -> { error = "Keep Hours enabled until this timer is reset"; t }

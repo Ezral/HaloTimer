@@ -1,10 +1,10 @@
-# HaloTimer · v1.1
+# HaloTimer · v1.2
 
 A quiet Android timer that stays with you while you use your phone.
 
 HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-[Quick start](docs/QUICK_START.md) · [v1.1 notes](docs/releases/V1.1.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
+[Quick start](docs/QUICK_START.md) · [v1.2 notes](docs/releases/V1.2.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
 ## Get started
 
@@ -20,6 +20,8 @@ Requires **Android 8.0 or newer**. Version 1.0 is the product milestone; the dow
 - **Three independent tracks.** Rename Timer A, B and C, switch between document-style tabs, and activate each track separately. Mix standalone timers and sequences in any combination.
 - **Whole-minute and whole-second controls.** Type, swipe vertically, scroll with a mouse, or use the accessible plus/minus actions. Seconds carry and borrow across minute boundaries: `00:59 ↔ 01:00`.
 - **Flexible duration.** Each timer or sequence step supports `00:01–99:59` by default. Enable **Hours** on a timer to use `00:00:01–99:59:59`, including its sequence steps; HH:MM:SS appears across the menu, pill and dock. Turning Hours off never truncates a longer duration. Quick presets set a single timer to 1, 5, 15 or 25 minutes.
+- **Repeat a timer or whole sequence.** Choose 1× (default), infinity, or 1–9999 total rounds. Rounds advance immediately; Reset returns to round one, paused, and Stop ends the loop. Round alerts play once; your configured final-alert repeat applies at the end of the last round. Missed rounds are reconciled without replaying a backlog.
+- **Replace digits directly.** Tap HRS, MIN or SEC and type the new value; the first input replaces the old value. Tap Done or move to another field to apply it.
 - **Named sequences.** Add up to 50 steps with independent names and durations. Halo advances automatically, shows the current step and resets that track's edge progress for each step.
 - **Editable examples.** Pour-over includes blooming and slow pouring. Steak includes searing, flipping, the fatty side and resting. Loading an example asks before replacing your current steps.
 - **Independent playback.** Pause, resume, stop or restart one timer while the others continue. Adjust a running timer by 30 seconds from its menu.
@@ -33,6 +35,8 @@ The halo uses full-display coordinates, including the status and navigation bar 
 
 Each track has its own color and glow strength. Choose from the palette—including bright red, strong blue and purple—or use the custom hue/saturation/brightness palette (hex input is optional). Palette colors already used by another active track are marked unavailable; use distinct custom colors to keep tracks easy to distinguish.
 
+The final palette circle remembers your last saved custom color for quick reuse. **Aurora**, **Sunset** and **Electric** add mixed-color edge lines, while the pill and dock keep a solid matching accent.
+
 When time is up, choose one of four continuous animations:
 
 | Alert | Appearance |
@@ -43,6 +47,14 @@ When time is up, choose one of four continuous animations:
 | Double pong | Two lights travel and bounce around the perimeter. |
 
 Final edge alerts continue until dismissed or stopped. **Preview edge alert** lets you try a style without starting a timer or leaving the menu. **Text motion on timer dock** controls the dock label independently of edge alerts and surface transitions.
+
+## Full-screen timer display
+
+Choose **Full screen** in Timer display, select any one, two or three active tracks, and open the display. One timer fills the view, two split it, and three use pizza-style sections. Layouts adapt to portrait and landscape. Each section shows its name, current step, fixed-width countdown and round, with independent play/pause, reset and stop controls.
+
+Starting from the menu opens this display when full-screen mode is selected. The header starts the displayed timers, stops all timers, opens settings or returns to overlays. Floating windows are suppressed while the full-screen display is visible; the same timer sessions continue when switching back.
+
+Enabled completion color animations expand and shrink inside their own section, leaving other timers visible. Repeating rounds show a round-complete message; the last round shows the final timer-complete message. Very fast repeats coalesce visual reveals already in progress. **Keep screen awake** is optional and off by default; it applies only while a displayed timer runs.
 
 ## Floating pill and edge dock
 

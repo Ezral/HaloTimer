@@ -31,7 +31,8 @@ private val Context.settings by preferencesDataStore("halo_preferences")
 data class Preferences(val theme: String = "System", val reducedMotion: Boolean = false, val volume: Boolean = false, val dismissAllOnMenu: Boolean = false,
     val completionEnabled: Boolean = true, val completionSeconds: Int = 4,
     val completionTextSp: Int = 28, val completionBold: Boolean = true,
-    val completionAlignment: String = "Center", val dockTextMotion: Boolean = true)
+    val completionAlignment: String = "Center", val dockTextMotion: Boolean = true,
+    val fullScreenMode: Boolean = false, val fullScreenMask: Int = 7, val keepScreenOn: Boolean = false)
 class PreferenceStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val motionKey = booleanPreferencesKey("reduced_motion")
@@ -43,9 +44,16 @@ class PreferenceStore(private val context: Context) {
     private val textSizeKey = intPreferencesKey("completion_text_sp")
     private val boldKey = booleanPreferencesKey("completion_bold")
     private val alignKey = stringPreferencesKey("completion_alignment")
+    private val fullScreenKey = booleanPreferencesKey("full_screen_mode")
+    private val fullScreenMaskKey = intPreferencesKey("full_screen_mask")
+    private val keepScreenKey = booleanPreferencesKey("full_screen_keep_awake")
     val flow = context.settings.data.map { Preferences(it[themeKey] ?: "System", false, it[volumeKey] ?: false, it[dismissKey] ?: false,
         it[completionKey] ?: true, (it[secondsKey] ?: 4).coerceIn(1,30),
-        (it[textSizeKey] ?: 28).coerceIn(18,48), it[boldKey] ?: true, it[alignKey] ?: "Center", it[dockTextKey] ?: !(it[motionKey] ?: false)) }
+        (it[textSizeKey] ?: 28).coerceIn(18,48), it[boldKey] ?: true, it[alignKey] ?: "Center", it[dockTextKey] ?: !(it[motionKey] ?: false),
+        it[fullScreenKey] ?: false, (it[fullScreenMaskKey] ?: 7).coerceIn(1,7), it[keepScreenKey] ?: false) }
+    suspend fun fullScreenMode(value: Boolean) { context.settings.edit { it[fullScreenKey] = value } }
+    suspend fun fullScreenMask(value: Int) { context.settings.edit { it[fullScreenMaskKey] = value.coerceIn(1,7) } }
+    suspend fun keepScreenOn(value: Boolean) { context.settings.edit { it[keepScreenKey] = value } }
     suspend fun completionEnabled(value: Boolean) { context.settings.edit { it[completionKey] = value } }
     suspend fun completionSeconds(value: Int) { context.settings.edit { it[secondsKey] = value.coerceIn(1,30) } }
     suspend fun completionTextSp(value: Int) { context.settings.edit { it[textSizeKey] = value.coerceIn(18,48) } }
