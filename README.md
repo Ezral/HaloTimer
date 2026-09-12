@@ -1,10 +1,10 @@
-# HaloTimer · v1.2
+# HaloTimer · v1.2.2
 
 A quiet Android timer that stays with you while you use your phone.
 
 HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-[Quick start](docs/QUICK_START.md) · [v1.2 notes](docs/releases/V1.2.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
+[Quick start](docs/QUICK_START.md) · [v1.2.2 notes](docs/releases/V1.2.2.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
 ## Get started
 
@@ -168,3 +168,5 @@ CI reuses its development signing identity so compatible previous builds update 
 The v1.0 feature baseline passed 42 JVM tests, Android lint with zero errors, and native Android 15 gesture/playback/capture checks. Phone testing also informed the overlay revisions. This does not constitute certification across all devices; see [validation status](docs/validation/STATUS.md) and the [implementation plan](docs/HALO_ANDROID_IMPLEMENTATION_PLAN.md).
 
 Bundled Poppins and JetBrains Mono licenses are included in `app/src/main/assets/licenses/`.
+
+Full-screen mode opens edge to edge with its header hidden. Pinch inward with two fingers to reveal it, or outward to hide it; the header does not resize the timer sections. Animated border strokes stay joined through the loop seam and follow display frames while active.

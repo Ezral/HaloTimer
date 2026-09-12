@@ -1,4 +1,4 @@
-# HaloTimer v1.2 · Quick guide
+# HaloTimer v1.2.2 · Quick guide
 
 ## Your first timer
 
@@ -106,4 +106,8 @@ Enable **Volume buttons in Halo** to adjust the selected timer while the Halo me
 | Cannot edit sequence steps | Stop/reset the existing session first, then edit. |
 | APK will not update | The installed copy may have a different signing key. Avoid uninstalling unless necessary: it clears local timers and settings. |
 
-[All features](../README.md) · [v1.2 notes](releases/V1.2.md)
+[All features](../README.md) · [v1.2.2 notes](releases/V1.2.2.md)
+
+### Full-screen gestures
+
+Full-screen mode opens without a header and uses the whole display. Pinch inward with two fingers to show the header; spread two fingers outward to hide it. The header floats above the timers, so countdown positions and line animations stay in place. Ordinary taps still operate playback controls. Screen-reader users can use the display’s Show header / Hide header accessibility action.
