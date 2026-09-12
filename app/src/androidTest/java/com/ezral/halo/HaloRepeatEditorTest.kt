@@ -24,13 +24,17 @@ class HaloRepeatEditorTest {
     @Test fun typingReplacesTimeAndRoundPaletteChoicesPersist() {
         rule.onNode(hasContentDescription("Hours") and hasClickAction() and isToggleable(), useUnmergedTree=true).performClick()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.hoursEnabled }
-        rule.onNode(hasContentDescription("Hours") and hasSetTextAction()).performClick().performTextInput("2").performImeAction()
+        rule.onNode(hasContentDescription("Hours") and hasSetTextAction()).performClick().performTextInput("2")
+        rule.onNode(hasContentDescription("Hours") and hasSetTextAction()).performImeAction()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 7500000L }
-        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performClick().performTextInput("12").performImeAction()
+        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performClick().performTextInput("12")
+        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performImeAction()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 7920000L }
-        rule.onNode(hasContentDescription("Seconds") and hasSetTextAction()).performClick().performTextInput("9").performImeAction()
+        rule.onNode(hasContentDescription("Seconds") and hasSetTextAction()).performClick().performTextInput("9")
+        rule.onNode(hasContentDescription("Seconds") and hasSetTextAction()).performImeAction()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 7929000L }
-        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performClick().performTextInput("0").performImeAction()
+        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performClick().performTextInput("0")
+        rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performImeAction()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 7209000L }
         rule.onNodeWithText("Set count").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Timer round count").performTextReplacement("3")
