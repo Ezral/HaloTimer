@@ -55,6 +55,9 @@ class HaloFullScreenTest {
         automation.serviceInfo=automation.serviceInfo.apply { flags=flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS }
         shell("appops set ${app.packageName} SYSTEM_ALERT_WINDOW allow")
         shell("pm grant ${app.packageName} android.permission.POST_NOTIFICATIONS")
+        // The clean emulator otherwise opens Android's full-screen education window
+        // after the first capture and obscures the app's accessibility tree.
+        shell("settings put secure immersive_mode_confirmations confirmed")
         runBlocking { withContext(Dispatchers.Main) {
             c.initialize();c.execute(Command.StopAll)
             listOf("Gym rest","Pour over","Stretch").forEachIndexed { id,name -> c.execute(Command.Activate(id,true)); c.execute(Command.Edit(Definition(id,name=name,active=true,durationMs=600000,color=listOf(0xFF39EBC7L,0xFFFF7452L,0xFF5260FFL)[id],haptic=HapticStyle.OFF))) }
@@ -90,6 +93,19 @@ class HaloFullScreenTest {
             tap("Return to overlay")
             await("Full-screen yields to overlays") { !OverlayVisibility.fullScreenVisible }
             capture("overlay-return")
+        } catch (failure: Throwable) {
+            capture("failure")
+            val dir=File("/sdcard/Download/halo-qa")
+            File(dir,"fullscreen-state.txt").writeText(c.state.value.toString()+"\n"+c.prefs.value.toString())
+            val nodes=StringBuilder()
+            fun dump(n:AccessibilityNodeInfo?) {
+                if(n==null) return
+                nodes.append(n.className).append(" | ").append(n.contentDescription).append(" | ").append(n.text).append('\n')
+                for(i in 0 until n.childCount) dump(n.getChild(i))
+            }
+            automation.windows.forEach { dump(it.root) }
+            File(dir,"fullscreen-accessibility.txt").writeText(nodes.toString())
+            throw failure
         } finally {
             runBlocking { withContext(Dispatchers.Main) {
                 c.execute(Command.StopAll); app.stopService(Intent(app,HaloRuntimeService::class.java)); c.haptics.cancelAll()
