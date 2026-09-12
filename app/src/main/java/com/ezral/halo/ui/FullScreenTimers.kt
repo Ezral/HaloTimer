@@ -197,8 +197,10 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
         val path = paths.fill
         drawPath(path, accent.copy(alpha = if (dark) .09f else .055f))
         fun line(start: Float, fraction: Float, alpha: Float = 1f) {
-            perimeterSegment(measure, progress, start, fraction)
-            clipPath(path) { drawPath(progress, brush, alpha=alpha, style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Butt, join=StrokeJoin.Round)) }
+            // Keep full outlines closed so the starting corner has a proper join.
+            if(fraction<1f) perimeterSegment(measure, progress, start, fraction)
+            clipPath(path) { drawPath(if(fraction>=1f) paths.line else progress, brush, alpha=alpha,
+                style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Butt, join=StrokeJoin.Round)) }
         }
         line(0f,1f,.14f)
         if(s != null && s.visualUntilMs > now) {
