@@ -21,7 +21,7 @@ class HaloPerimeterTest {
     @Test fun threeAnimatedPerimetersStaySeparateAndFollowPhysicalCorners() {
         val width=600;val height=1000;val stroke=8f
         val paths=timerPanels(3,false).map { sectionPaths(it,width.toFloat(),height.toFloat(),stroke,10f,listOf(64f,64f,100f,100f)) }
-        val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.WHITE;style=Paint.Style.STROKE;strokeWidth=stroke;strokeJoin=Paint.Join.ROUND }
+        val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.WHITE;style=Paint.Style.STROKE;strokeWidth=stroke;strokeJoin=Paint.Join.ROUND;strokeCap=Paint.Cap.ROUND }
         fun render(path:Path)=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888).also { Canvas(it).drawPath(path.asAndroidPath(),paint) }
         val images=paths.map { render(it.line) }
         try {
@@ -37,6 +37,9 @@ class HaloPerimeterTest {
                 val measure=PathMeasure().apply { setPath(p.line,true) }
                 val segment=Path()
                 perimeterSegment(measure,segment,.9999f,.20f);val before=render(segment)
+                val wrapped=android.graphics.PathMeasure(segment.asAndroidPath(),false)
+                assertEquals("The entire moving stroke continues through the seam",measure.length*.20f,wrapped.length,1f)
+                assertFalse("No split stroke or extra end caps at the seam",wrapped.nextContour())
                 perimeterSegment(measure,segment,.0001f,.20f);val after=render(segment)
                 try {
                     var changed=0

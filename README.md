@@ -168,3 +168,5 @@ CI reuses its development signing identity so compatible previous builds update 
 The v1.0 feature baseline passed 42 JVM tests, Android lint with zero errors, and native Android 15 gesture/playback/capture checks. Phone testing also informed the overlay revisions. This does not constitute certification across all devices; see [validation status](docs/validation/STATUS.md) and the [implementation plan](docs/HALO_ANDROID_IMPLEMENTATION_PLAN.md).
 
 Bundled Poppins and JetBrains Mono licenses are included in `app/src/main/assets/licenses/`.
+
+Full-screen mode opens edge to edge with its header hidden. Pinch inward with two fingers to reveal it, or outward to hide it; the header does not resize the timer sections. Animated border strokes stay joined through the loop seam and follow display frames while active.
