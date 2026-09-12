@@ -67,7 +67,7 @@ class TimerCoordinator(private val context: Context) {
             if (next != old || command != Command.Tick) alarmScheduler.reconcile(next)
             old.tracks.zip(next.tracks).forEach { (before, after) ->
                 haptics.updateChannels(after.definition)
-                if (before.session?.id != after.session?.id || before.session?.index != after.session?.index ||
+                if (before.session?.id != after.session?.id || before.session?.index != after.session?.index || before.session?.round != after.session?.round ||
                     !after.definition.active || (!after.definition.vibrates() && !after.definition.soundEnabled) ||
                     before.definition.haptic != after.definition.haptic || before.definition.morse != after.definition.morse || after.session?.status == Status.PAUSED) {
                     haptics.cancel(after.definition.id)

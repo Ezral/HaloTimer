@@ -30,6 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -59,6 +62,7 @@ fun HaloScreen(
     c: TimerCoordinator, initialSelected: Int,
     onSelect: (Int, Int) -> Unit, onLaunch: (Int) -> Unit, onPreview: (Int) -> Unit,
     onOverlayPermission: () -> Unit, onAlarmPermission: () -> Unit, onNotificationPermission: () -> Unit,
+    onFullScreen: () -> Unit = {},
 ) {
     val state by c.state.collectAsStateWithLifecycle()
     val prefs by c.prefs.collectAsStateWithLifecycle()
@@ -169,10 +173,30 @@ fun HaloScreen(
                         FilterChip(d.sequence, { c.submit(Command.Edit(d.copy(sequence = true))) }, { Text("Sequence") }, enabled = editable && ready)
                     }
                     SettingToggle("Hours", d.hoursEnabled) { focus.clearFocus(); c.submit(Command.Edit(d.copy(hoursEnabled = it))) }
+                    Text("Timer repetition", fontWeight = FontWeight.SemiBold)
+                    var customRounds by remember(selected) { mutableStateOf(d.repetitions > 1) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(d.repetitions == 1 && !customRounds, { customRounds = false; c.submit(Command.Edit(d.copy(repetitions = 1))) }, { Text("1×") }, enabled = editable && ready)
+                        FilterChip(d.repetitions == 0, { customRounds = false; c.submit(Command.Edit(d.copy(repetitions = 0))) }, { Text("∞") }, enabled = editable && ready,
+                            modifier = Modifier.semantics { contentDescription = "Repeat timer forever" })
+                        FilterChip(customRounds || d.repetitions > 1, { customRounds = true; c.submit(Command.Edit(d.copy(repetitions = d.repetitions.coerceAtLeast(2)))) }, { Text("Set count") }, enabled = editable && ready)
+                    }
+                    if (customRounds || d.repetitions > 1) {
+                        var count by remember(selected, d.repetitions) { mutableStateOf(d.repetitions.toString()) }
+                        OutlinedTextField(count, { value ->
+                            if (value.length <= 4 && value.all(Char::isDigit) && (value.isEmpty() || value.toIntOrNull() in 1..9999)) {
+                                count = value
+                                value.toIntOrNull()?.takeIf { it in 1..9999 }?.let { c.submit(Command.Edit(d.copy(repetitions = it))) }
+                            }
+                        }, enabled = editable && ready, label = { Text("Total rounds") }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && count.isEmpty()) count = d.repetitions.toString() }.semantics { contentDescription = "Timer round count" })
+                    }
+                    if (d.sequence && d.repetitions != 1) Text("Repeats the whole sequence", fontSize = 12.sp, color = scheme.onSurfaceVariant)
                     if (s != null) {
                         Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
                         Text(formatTime(s.remaining(now), d.hoursEnabled), fontFamily = CountdownMono, fontSize = if (d.hoursEnabled) 36.sp else 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                         if (s.steps.size > 1) Text("${s.index + 1} / ${s.steps.size}  ·  ${s.steps[s.index].name}", color = scheme.onSurfaceVariant)
+                        if (s.repetitions != 1) Text(s.roundLabel(), color = accent, fontFamily = CountdownMono)
                         LinearProgressIndicator(progress = { s.progress(now) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)
                         if (s.status == Status.RUNNING || s.status == Status.PAUSED) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             TextButton(onClick = { c.submit(Command.Adjust(c.target(selected), -30_000)) }) { Text("− 30s") }
@@ -206,14 +230,49 @@ fun HaloScreen(
                     }
                 }
                 HaloCard {
+                    Text("Timer display", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(!prefs.fullScreenMode, { c.scope.launch { c.preferences.fullScreenMode(false) } }, { Text("Overlay") })
+                        FilterChip(prefs.fullScreenMode, { c.scope.launch { c.preferences.fullScreenMode(true) } }, { Text("Full screen") })
+                    }
+                    if (prefs.fullScreenMode) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            state.tracks.forEach { t ->
+                                val bit = 1 shl t.definition.id
+                                FilterChip(prefs.fullScreenMask and bit != 0, {
+                                    val mask = prefs.fullScreenMask xor bit
+                                    if (mask != 0) c.scope.launch { c.preferences.fullScreenMask(mask) }
+                                }, { Text(t.definition.name) }, enabled = t.definition.active,
+                                    modifier = Modifier.semantics { contentDescription = "Display ${t.definition.name}" })
+                            }
+                        }
+                        SettingToggle("Keep full-screen display awake", prefs.keepScreenOn) { c.scope.launch { c.preferences.keepScreenOn(it) } }
+                        TextButton(onClick = { focus.clearFocus(); onFullScreen() }, enabled = ready) { Text("Open full-screen timer") }
+                    }
+                }
+                HaloCard {
                     Text("Edge light", fontWeight = FontWeight.SemiBold)
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), maxItemsInEachRow = 6) {
                         palette.forEach { color ->
                             val taken = state.tracks.any { it.definition.id != selected && it.definition.active && it.definition.color == color }
-                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(enabled = !taken) { c.submit(Command.Edit(d.copy(color = color))) }.semantics { contentDescription = "${palette.indexOf(color) + 1}: ${if (taken) "Used by another timer" else "Choose color"}" }, contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(enabled = !taken) { c.submit(Command.Edit(d.copy(color = color, linePalette = LinePalette.SOLID))) }.semantics { contentDescription = "${palette.indexOf(color) + 1}: ${if (taken) "Used by another timer" else "Choose color"}" }, contentAlignment = Alignment.Center) {
                                 Box(Modifier.size(28.dp).background(Color(color).copy(alpha = if (taken) .2f else 1f), RoundedCornerShape(14.dp)))
-                                if (d.color == color) Text("✓", color = Color(0xFF20202A), fontWeight = FontWeight.Bold)
+                                if (d.color == color && d.linePalette == LinePalette.SOLID) Text("✓", color = Color(0xFF20202A), fontWeight = FontWeight.Bold)
                             }
+                        }
+                        LinePalette.entries.filterNot { it == LinePalette.SOLID }.forEach { mix ->
+                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable { c.submit(Command.Edit(d.copy(color = mix.colors.first(), linePalette = mix))) }
+                                .semantics { contentDescription = "${mix.label} mixed color"; this.selected = d.linePalette == mix }, contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(28.dp).background(Brush.sweepGradient((mix.colors + mix.colors.first()).map { Color(it) }), RoundedCornerShape(14.dp)))
+                                if (d.linePalette == mix) Text("✓", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable {
+                            d.customColor?.let { c.submit(Command.Edit(d.copy(color = it, linePalette = LinePalette.SOLID))) } ?: run { customColor = true }
+                        }.semantics { contentDescription = "Saved custom color"; this.selected = d.customColor != null && d.color == d.customColor && d.linePalette == LinePalette.SOLID }, contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(28.dp).background(d.customColor?.let { Color(it) } ?: scheme.surfaceVariant, RoundedCornerShape(14.dp)))
+                            Text(if (d.customColor == null) "+" else if (d.color == d.customColor && d.linePalette == LinePalette.SOLID) "✓" else "",
+                                color = d.customColor?.let { Color(com.ezral.halo.overlay.HaloGlass.foreground(it.toInt())) } ?: scheme.onSurface, fontWeight = FontWeight.Bold)
                         }
                     }
                     OutlinedButton(onClick = { customColor = true }) { Text("Custom line color") }
@@ -340,7 +399,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  1.1", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.2", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
@@ -358,7 +417,7 @@ fun HaloScreen(
             }, confirmButton = { TextButton(onClick = { c.submit(Command.Edit(d.copy(name = nameDraft.trim()))); editingName = false },
                 enabled = nameDraft.isNotBlank()) { Text("Save") } }, dismissButton = { TextButton(onClick = { editingName = false }) { Text("Cancel") } })
             if (customColor) LineColorPicker(d.color, onDismiss = { customColor = false }) { color ->
-                c.submit(Command.Edit(d.copy(color = color))); customColor = false
+                c.submit(Command.Edit(d.copy(color = color, customColor = color, linePalette = LinePalette.SOLID))); customColor = false
             }
 
         }
@@ -403,19 +462,30 @@ private fun DurationEditor(value: Long, hoursEnabled: Boolean = false, compact: 
             val label = when (unit) { 3_600_000L -> "Hours"; 60_000L -> "Minutes"; else -> "Seconds" }
             if (fieldIndex > 0) Text(":", fontFamily = CountdownMono, fontSize = if (hoursEnabled || compact) 28.sp else 52.sp, modifier = Modifier.padding(bottom = 20.dp))
             val number = when (unit) { 3_600_000L -> value / unit; 60_000L -> if (hoursEnabled) value / unit % 60 else value / unit; else -> value / 1000 % 60 }
-            var draft by remember(number) { mutableStateOf("%02d".format(number)) }
+            var draft by remember(number) { mutableStateOf(TextFieldValue("%02d".format(number))) }
             var focused by remember { mutableStateOf(false) }
+            var overwrite by remember { mutableStateOf(false) }
             val focus = LocalFocusManager.current
             fun change(delta: Long) { onInteract(); latestChanged((latestValue + delta).coerceIn(MIN_MS, if (hoursEnabled) MAX_HOURS_MS else MAX_MS)) }
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                BasicTextField(draft, { if (it.length <= 2 && it.all(Char::isDigit)) draft = it },
+                BasicTextField(draft, { incoming ->
+                    if (incoming.text == draft.text) draft = incoming
+                    else {
+                        val text = if (overwrite) replacementDigits(draft.text, incoming.text) else incoming.text
+                        if (text.length <= 2 && text.all(Char::isDigit)) {
+                            draft = TextFieldValue(text, TextRange(text.length)); overwrite = false
+                        }
+                    }
+                },
                     Modifier.fillMaxWidth().heightIn(min = 64.dp)
                         .onFocusChanged {
-                            if (it.isFocused) onInteract()
+                            if (it.isFocused && !focused) {
+                                onInteract(); overwrite = true; draft = draft.copy(selection = TextRange(0, draft.text.length))
+                            }
                             if (focused && !it.isFocused) {
-                                val n = draft.toLongOrNull()
+                                val n = draft.text.toLongOrNull()
                                 if (n != null) latestChanged(replaceTimeField(latestValue, unit, n, hoursEnabled))
-                                else draft = "%02d".format(number)
+                                else draft = TextFieldValue("%02d".format(number))
                             }; focused = it.isFocused
                         }
                         .pointerInput(unit, enabled, hoursEnabled) {

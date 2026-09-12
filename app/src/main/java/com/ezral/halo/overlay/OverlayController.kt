@@ -154,27 +154,34 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     }
     private var completion:CompletionView?=null
     private var completionTrack:Int?=null
+    private var completionSessionId:String?=null
     private val completedSessions=mutableMapOf<Int,String>()
     private val completionQueue=ArrayDeque<Pair<Track,PointF>>()
     private fun closeCompletion() {
-        completion?.let { runCatching { wm.removeView(it) } };completion=null;completionTrack=null
+        completion?.let { runCatching { wm.removeView(it) } };completion=null;completionTrack=null;completionSessionId=null
     }
     private fun updateCompletion(state:Snapshot,prefs:Preferences,now:Long) {
         state.tracks.forEach { t ->
             val session=t.session
-            if(session?.status==Status.COMPLETED && session.id!=completedSessions[t.definition.id]) {
-                completedSessions[t.definition.id]=session.id
-                if(prefs.completionEnabled && !OverlayVisibility.menuVisible && now-session.alertStartedAtMs in 0..10_000) {
+            val boundary = session?.cycleCompletedAtMs?.takeIf { it > 0 } ?: if(session?.status==Status.COMPLETED) session.alertStartedAtMs else 0
+            val key = session?.let { "${it.id}:$boundary" }
+            if(boundary > 0 && key != completedSessions[t.definition.id]) {
+                completedSessions[t.definition.id] = key!!
+                if(session?.status==Status.COMPLETED && completionTrack==t.definition.id) closeCompletion()
+                if(prefs.completionEnabled && !OverlayVisibility.menuVisible && !OverlayVisibility.fullScreenVisible && now-boundary in 0..10_000 && completionTrack!=t.definition.id) {
                     val origin=controls[t.definition.id]?.let { val body = shape(it).bounds; PointF(body.centerX(), body.centerY()) } ?: PointF(
                         context.resources.displayMetrics.widthPixels*(if(t.definition.dock==DockSide.LEFT) 0f else if(t.definition.dock==DockSide.RIGHT) 1f else t.definition.x),
                         context.resources.displayMetrics.heightPixels*t.definition.y)
+                    completionQueue.removeAll { it.first.definition.id == t.definition.id }
                     completionQueue.addLast(t to origin)
                 }
             }
         }
-        if(!prefs.completionEnabled || OverlayVisibility.menuVisible) { completionQueue.clear();closeCompletion();return }
-        completionQueue.removeAll { state.tracks[it.first.definition.id].session?.let { s -> s.id==it.first.session?.id && s.status==Status.COMPLETED } != true }
-        if(completionTrack?.let { state.tracks[it].session?.status!=Status.COMPLETED }==true) closeCompletion()
+        if(!prefs.completionEnabled || OverlayVisibility.menuVisible || OverlayVisibility.fullScreenVisible) { completionQueue.clear();closeCompletion();return }
+        completionQueue.removeAll { queued -> state.tracks[queued.first.definition.id].let { t ->
+            !t.definition.active || t.session?.id != queued.first.session?.id || t.session?.status !in listOf(Status.RUNNING, Status.COMPLETED)
+        } }
+        if(completionTrack?.let { id -> state.tracks[id].let { t -> !t.definition.active || t.session?.id != completionSessionId || t.session?.status !in listOf(Status.RUNNING, Status.COMPLETED) } }==true) closeCompletion()
         if(completion==null && completionQueue.isNotEmpty()) {
             val (track,origin)=completionQueue.removeFirst()
             val view=CompletionView(context,track,origin,prefs) { closeCompletion() }
@@ -186,7 +193,7 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
                 if(Build.VERSION.SDK_INT>=30) setFitInsetsTypes(0)
                 if(Build.VERSION.SDK_INT>=28) layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
-            try { wm.addView(view,params);completion=view;completionTrack=track.definition.id }
+            try { wm.addView(view,params);completion=view;completionTrack=track.definition.id;completionSessionId=track.session?.id }
             catch(_:SecurityException) { closeCompletion() }
             catch(_:WindowManager.BadTokenException) { closeCompletion() }
         }
@@ -199,6 +206,9 @@ class OverlayController(private val context: Context, private val c: TimerCoordi
     fun preview(id: Int) { previewId = id; previewUntil = SystemClock.elapsedRealtime() + 5_000 }
     fun previewing() = previewUntil > SystemClock.elapsedRealtime()
     fun render(state: Snapshot, preferences: Preferences) {
+        if (OverlayVisibility.fullScreenVisible) {
+            removeAll(); updateCompletion(state, preferences, SystemClock.elapsedRealtime()); return
+        }
         if (!Settings.canDrawOverlays(context)) { removeAll(); return }
         val now = SystemClock.elapsedRealtime()
         val size = "${context.resources.displayMetrics.widthPixels}:${context.resources.displayMetrics.heightPixels}:${context.resources.configuration.orientation}"

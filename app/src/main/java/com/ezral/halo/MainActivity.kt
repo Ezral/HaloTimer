@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
                 onSelect = { id, step -> cancelHold(); selected = id; selectedStep = step },
                 onLaunch = { id -> launchRuntime("launch", id) },
                 onPreview = { id -> launchRuntime("preview", id) },
+                onFullScreen = { openFullScreen() },
                 onOverlayPermission = { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) },
                 onAlarmPermission = { if (Build.VERSION.SDK_INT >= 31) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))) },
                 onNotificationPermission = { if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) })
@@ -99,12 +100,20 @@ class MainActivity : ComponentActivity() {
                 ContextCompat.startForegroundService(this@MainActivity,
                     Intent(this@MainActivity, HaloRuntimeService::class.java).setAction(action).putExtra("track", id))
                 // Reveal the previous task (or home) without guessing which app was last used.
-                if (leaveSettings) moveTaskToBack(true)
+                if (leaveSettings) {
+                    if (c.prefs.value.fullScreenMode) {
+                        val mask = if (id == -1) c.state.value.tracks.filter { it.definition.active }.fold(0) { n, t -> n or (1 shl t.definition.id) }
+                            else c.prefs.value.fullScreenMask or (1 shl id)
+                        c.preferences.fullScreenMask(mask)
+                        openFullScreen()
+                    } else moveTaskToBack(true)
+                }
             } catch (_: RuntimeException) {
                 c.error.value = "Android could not start Halo. Keep the app open and try again."
             }
         }
     }
+    private fun openFullScreen() { cancelHold(); startActivity(Intent(this, FullScreenActivity::class.java)) }
     private fun cancelHold() { handler.removeCallbacks(repeat); heldKey = null; target = null; exhausted = false }
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = handleVolume(event) || super.onKeyDown(keyCode, event)
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = handleVolume(event) || super.onKeyUp(keyCode, event)

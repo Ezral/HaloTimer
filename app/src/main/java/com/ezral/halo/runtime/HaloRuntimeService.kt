@@ -24,6 +24,7 @@ class HaloRuntimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         overlay = OverlayController(this, c)
+        scope.launch { com.ezral.halo.overlay.OverlayVisibility.fullScreenChanges.collect { if (it) overlay.removeAll() } }
         scope.launch { com.ezral.halo.overlay.OverlayVisibility.changes.collect { if (it) overlay.hideControls() } }
         screenOn = getSystemService(PowerManager::class.java).isInteractive
         ContextCompat.registerReceiver(this, displayReceiver, IntentFilter().apply {
@@ -51,7 +52,8 @@ class HaloRuntimeService : Service() {
                 val s = track.session
                 val d = track.definition
                 if (d.active && s?.status == Status.COMPLETED && s.visualUntilMs > SystemClock.elapsedRealtime() && (d.vibrates() || d.soundEnabled) && d.hapticRepeat == HapticRepeat.UNTIL_DISMISS) {
-                    c.haptics.enqueue(AlertEvent("${s.id}:${s.index}", d.id, SystemClock.elapsedRealtime(), true,
+                    val eventId = if (s.round == 1L) "${s.id}:${s.index}" else "${s.id}:r${s.round}:${s.index}"
+                    c.haptics.enqueue(AlertEvent(eventId, d.id, SystemClock.elapsedRealtime(), true,
                         d.alertPattern(), d.morse, d.hapticRepeat, d.customRepeatCount, d.repeatDurationMs, d.vibrates(), d.soundEnabled))
                 }
             }

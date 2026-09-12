@@ -14,7 +14,7 @@ trap 'kill "$halo_logcat_pid" 2>/dev/null || true' EXIT
 # on a clean install so the smoke test's default-timer assumptions remain valid.
 ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace \
   -Dorg.gradle.jvmargs='-Xmx768m -Dfile.encoding=UTF-8' --max-workers=2 \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.ezral.halo.HaloUpgradeTest,com.ezral.halo.HaloSmokeTest
+  -Pandroid.testInstrumentationRunnerArguments.class=com.ezral.halo.HaloRepeatEditorTest,com.ezral.halo.HaloUpgradeTest,com.ezral.halo.HaloSmokeTest,com.ezral.halo.HaloFullScreenTest,com.ezral.halo.HaloPerimeterTest
 halo_test_result=$?
 if [ "$halo_test_result" -ne 0 ]; then
   free -m > native-screenshots/host-memory.txt

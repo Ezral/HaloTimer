@@ -40,6 +40,10 @@ class HaloSmokeTest {
             // Restore the launch identity for ActivityScenario before ending its activity.
             activity.intent=launchIntent;activity.finish()
         } }
+        // finish() is asynchronous; let DESTROYED reach ActivityScenario before
+        // its rule also closes the activity, rather than racing at STARTED.
+        rule.waitUntil(5_000) { activity.isDestroyed }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     private fun shell(command: String) {
@@ -148,6 +152,7 @@ class HaloSmokeTest {
         val config = automation.serviceInfo
         config.flags = config.flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         automation.serviceInfo = config
+        if(android.os.Build.VERSION.SDK_INT>=34) automation.clearCache()
         fun find(node: android.view.accessibility.AccessibilityNodeInfo?): android.view.accessibility.AccessibilityNodeInfo? {
             if (node == null) return null
             if (node.contentDescription?.toString()?.contains(description) == true || node.text?.toString() == description) return node
@@ -158,6 +163,8 @@ class HaloSmokeTest {
     }
 
     private fun tapNative(description: String) {
+        // Window focus can arrive before Compose has published its new controls.
+        rule.waitUntil(5_000) { overlayNode(description)!=null }
         val node = overlayNode(description) ?: error("Missing native target: $description")
         val bounds = android.graphics.Rect(); node.getBoundsInScreen(bounds)
         android.util.Log.i("HaloQA", "Tap $description at $bounds; clickable=${node.isClickable}")

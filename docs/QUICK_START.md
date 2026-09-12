@@ -1,4 +1,4 @@
-# HaloTimer v1.1 · Quick guide
+# HaloTimer v1.2 · Quick guide
 
 ## Your first timer
 
@@ -46,6 +46,24 @@ Select another tab, turn it Active, give it a different color and set a single t
 
 Pausing, resetting or stopping one does not stop the others. Use the top **Stop all** icon when you want everything to end.
 
+## Repeat your timer
+
+Under **Timer repetition**, choose **1×**, **∞**, or **Set count** and enter the total number of rounds (1–9999). A sequence repeats all its steps before starting its next round. Stop the existing session before changing its repeat count. This is separate from sound/vibration repetitions.
+
+## Use full-screen mode
+
+1. Activate the timer tabs you need.
+2. In **Timer display**, choose **Full screen** and select the timers to show.
+3. Tap **Open full-screen timer**, or start a timer from the top menu.
+4. One timer fills the screen; two split it; three form pizza sections. Rotate the phone for landscape.
+5. Use each section's playback icons independently. The header has Settings, Start displayed, Stop all and Return to overlay.
+
+Enable **Keep screen awake** if desired. Completion reveals stay inside the finished timer's section. Other timers keep counting. Returning to overlays requires Display over other apps permission.
+
+Tap the full-screen menu icon to adjust its layout, number size, names, controls, line width/spacing, alert speed and screen inset. **Match phone corners** is on by default; turn it off to choose a custom radius. **All settings** returns to the Halo menu.
+
+The last circle in the color palette recalls your saved custom color. Try **Aurora**, **Sunset** or **Electric** for a mixed-color edge. Tap any HRS/MIN/SEC field and type to replace its old digits directly, then press Done.
+
 ## Choose how Halo gets your attention
 
 Under **Edge light**, choose Breathe, Orbit, Ping-pong or Double pong and set Glow. Use **Preview edge alert** to try the animation.
@@ -88,4 +106,4 @@ Enable **Volume buttons in Halo** to adjust the selected timer while the Halo me
 | Cannot edit sequence steps | Stop/reset the existing session first, then edit. |
 | APK will not update | The installed copy may have a different signing key. Avoid uninstalling unless necessary: it clears local timers and settings. |
 
-[All features](../README.md) · [v1.1 notes](releases/V1.1.md)
+[All features](../README.md) · [v1.2 notes](releases/V1.2.md)
