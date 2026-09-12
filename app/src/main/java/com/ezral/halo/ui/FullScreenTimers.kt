@@ -1,6 +1,7 @@
 package com.ezral.halo.ui
 
 import android.os.SystemClock
+import com.ezral.halo.graphics.perimeterSegment
 import android.view.WindowManager
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -243,8 +244,9 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     val paths = remember(panel,width,height,density.density,prefs.fullScreenLineDp,prefs.fullScreenGapDp,radii) {
         with(density) { sectionPaths(panel,width.toPx(),height.toPx(),prefs.fullScreenLineDp.dp.toPx(),prefs.fullScreenGapDp.dp.toPx(),radii.map { it.dp.toPx() }) }
     }
-    val measure = remember(paths) { PathMeasure().apply { setPath(paths.line, true) } }
+    val measure = remember(paths) { android.graphics.PathMeasure(paths.line.asAndroidPath(), true) }
     val progress = remember(paths) { Path() }
+    val wrapped = remember(paths) { android.graphics.Path() }
     val brush = remember(colors,panel,width,height,density.density) {
         with(density) { Brush.sweepGradient(colors + colors.first(),center=Offset(panel.x*width.toPx(),panel.y*height.toPx())) }
     }
@@ -253,7 +255,7 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
         drawPath(path, accent.copy(alpha = if (dark) .09f else .055f))
         fun line(start: Float, fraction: Float, alpha: Float = 1f) {
             // Keep full outlines closed so the starting corner has a proper join.
-            if(fraction<1f) perimeterSegment(measure, progress, start, fraction)
+            if(fraction<1f) perimeterSegment(measure, progress.asAndroidPath(), wrapped, start, fraction)
             clipPath(path) { drawPath(if(fraction>=1f) paths.line else progress, brush, alpha=alpha,
                 style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Round, join=StrokeJoin.Round)) }
         }

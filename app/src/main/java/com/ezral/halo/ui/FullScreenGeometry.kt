@@ -51,12 +51,3 @@ internal fun sectionPaths(panel:TimerPanel,width:Float,height:Float,lineWidth:Fl
     val line=polygon(insetPanel(panel,width,height,half,half+gap/2)).apply { op(frame(half),AndroidPath.Op.INTERSECT) }
     return SectionPaths(fill.asComposePath(),line.asComposePath())
 }
-
-/** Continue through the closed perimeter seam as one stroke, preserving its corner join.
- * Each measure contains exactly one closed section, so the end and start coincide. */
-internal fun perimeterSegment(measure:androidx.compose.ui.graphics.PathMeasure, destination:Path, start:Float, fraction:Float) {
-    val from=((start%1f)+1f)%1f;val end=from+fraction.coerceIn(0f,1f)
-    destination.reset()
-    measure.getSegment(from*measure.length,minOf(end,1f)*measure.length,destination,true)
-    if(end>1f) measure.getSegment(0f,(end-1f)*measure.length,destination,false)
-}

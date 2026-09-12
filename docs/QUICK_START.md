@@ -1,4 +1,4 @@
-# HaloTimer v1.2.1 · Quick guide
+# HaloTimer v1.2.2 · Quick guide
 
 ## Your first timer
 
@@ -106,7 +106,7 @@ Enable **Volume buttons in Halo** to adjust the selected timer while the Halo me
 | Cannot edit sequence steps | Stop/reset the existing session first, then edit. |
 | APK will not update | The installed copy may have a different signing key. Avoid uninstalling unless necessary: it clears local timers and settings. |
 
-[All features](../README.md) · [v1.2.1 notes](releases/V1.2.1.md)
+[All features](../README.md) · [v1.2.2 notes](releases/V1.2.2.md)
 
 ### Full-screen gestures
 

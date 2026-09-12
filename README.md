@@ -1,10 +1,10 @@
-# HaloTimer · v1.2.1
+# HaloTimer · v1.2.2
 
 A quiet Android timer that stays with you while you use your phone.
 
 HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-[Quick start](docs/QUICK_START.md) · [v1.2.1 notes](docs/releases/V1.2.1.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
+[Quick start](docs/QUICK_START.md) · [v1.2.2 notes](docs/releases/V1.2.2.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
 ## Get started
 
