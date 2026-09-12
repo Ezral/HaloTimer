@@ -172,9 +172,12 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     var completionText by remember(s?.id) { mutableStateOf("") }
     val boundary = s?.cycleCompletedAtMs?.takeIf { it > 0 } ?: if (s?.status == Status.COMPLETED) s.alertStartedAtMs else 0
     LaunchedEffect(s?.id, boundary, prefs.completionEnabled) {
+        // A deadline event can arrive between display frames. The cached frame
+        // timestamp may precede that event, so use the clock at observation time.
+        val observedAt = SystemClock.elapsedRealtime()
         if (!prefs.completionEnabled) motion = null
-        else if (boundary > 0 && now - boundary in 0..10_000 && (s?.status == Status.COMPLETED || motion == null || motion!!.finished(now - startedAt))) {
-            startedAt = SystemClock.elapsedRealtime(); motion = CompletionMotion(prefs.completionSeconds * 1000L)
+        else if (boundary > 0 && observedAt - boundary in 0..10_000 && (s?.status == Status.COMPLETED || motion == null || motion!!.finished(observedAt - startedAt))) {
+            startedAt = observedAt; motion = CompletionMotion(prefs.completionSeconds * 1000L)
             completionText = (if (s?.status == Status.COMPLETED) "Timer is completed for" else "Round ${(s?.round ?: 2) - 1} completed") +
                 "\n${d.name}" + if (d.sequence) " · ${s?.steps?.lastOrNull()?.name.orEmpty()}" else ""
         }
