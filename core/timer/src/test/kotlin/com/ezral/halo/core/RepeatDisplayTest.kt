@@ -70,8 +70,8 @@ class RepeatDisplayTest {
         assertEquals("",replacementDigits("05",""))
     }
     @Test fun panelsCoverTheScreenAndContainTheirOwnAnchors() {
-        for(n in 1..3) for(wide in listOf(false,true)) {
-            val panels=timerPanels(n,wide)
+        for(n in 1..3) for(wide in listOf(false,true)) for(pizza in listOf(false,true)) {
+            val panels=timerPanels(n,wide,pizza)
             assertEquals(n,panels.size)
             fun contains(p:TimerPanel,x:Float,y:Float):Boolean {
                 var inside=false;var j=p.outline.lastIndex
