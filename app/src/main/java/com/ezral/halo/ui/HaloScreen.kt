@@ -89,7 +89,13 @@ fun HaloScreen(
     val running = state.tracks.any { it.session?.status == Status.RUNNING }
     LaunchedEffect(lifecycle, running) {
         if (running) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) { c.execute(Command.Tick); clock.longValue = SystemClock.elapsedRealtime(); delay(200) }
+            while (true) {
+                // Completion changes `running` and cancels this UI effect. Let the coordinator
+                // finish its durable outbox write and alert delivery independently.
+                c.scope.launch { c.execute(Command.Tick) }.join()
+                clock.longValue = SystemClock.elapsedRealtime()
+                delay(200)
+            }
         }
     }
     LaunchedEffect(selected, selectedStep) { onSelect(selected, selectedStep) }

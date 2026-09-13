@@ -8,9 +8,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.Until
+import androidx.test.uiautomator.UiSelector
 import com.ezral.halo.core.*
 import com.ezral.halo.data.HaloStore
 import kotlinx.coroutines.*
@@ -68,14 +67,19 @@ class HaloAudioTest {
         rule.onNodeWithContentDescription("Sound").performScrollTo().performClick()
         rule.onNodeWithText("Choose audio file").performScrollTo().performClick()
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        var file = device.wait(Until.findObject(By.text(title)), 5000)
-        if (file == null) {
-            device.wait(Until.findObject(By.desc("Show roots")), 5000)?.click()
-            device.wait(Until.findObject(By.text("Downloads")), 5000)?.click()
-            file = device.wait(Until.findObject(By.text(title)), 5000)
+        // UiObject resolves its selector for each action; the picker replaces drawer
+        // nodes during its opening transition, so cached UiObject2 handles can go stale.
+        val file = device.findObject(UiSelector().text(title))
+        if (!file.waitForExists(5000)) {
+            val roots = device.findObject(UiSelector().description("Show roots"))
+            assertTrue("System picker navigation is available", roots.waitForExists(5000))
+            roots.click(); device.waitForIdle(2000)
+            val downloads = device.findObject(UiSelector().text("Downloads"))
+            assertTrue("Downloads is available", downloads.waitForExists(5000))
+            downloads.click(); device.waitForIdle(2000)
         }
-        assertNotNull("Audio file must be selectable in the system picker", file)
-        file!!.click()
+        assertTrue("Audio file must be selectable in the system picker", file.waitForExists(5000))
+        file.click()
         rule.waitUntil(10000) { c.state.value.tracks[0].definition.soundUri != null }
         val selected = c.state.value.tracks[0].definition
         assertEquals(title, selected.soundName)
