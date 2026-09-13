@@ -65,6 +65,23 @@ class AlertsTest {
         assertEquals("Bloom · Coffee", t.overlayLabel())
         assertEquals("Coffee", t.copy(definition = t.definition.copy(sequence = false)).overlayLabel())
     }
+    @Test fun customAudioSurvivesLegacyDecodeAndReachesCompletionEvents() {
+        val legacy = kotlinx.serialization.json.Json.decodeFromString<Definition>("{\"id\":0}")
+        assertNull(legacy.soundUri)
+        assertNull(legacy.soundName)
+        val engine = TimerEngine { "audio-run" }
+        val d = Definition(0, durationMs = 1000, repetitions = 2, soundEnabled = true,
+            soundUri = "content://audio/custom.mp3", soundName = "Custom.mp3")
+        var state = engine.apply(Snapshot(), Command.Edit(d), 0).snapshot
+        state = engine.apply(state, Command.Start(setOf(0)), 0).snapshot
+        val round = engine.reconcile(state, 1000)
+        assertEquals(d.soundUri, round.outbox.single().soundUri)
+        assertFalse(round.outbox.single().final)
+        val final = engine.reconcile(round.copy(outbox = emptyList()), 2000)
+        assertEquals(d.soundUri, final.outbox.single().soundUri)
+        assertTrue(final.outbox.single().final)
+    }
+
     @Test fun finalAlertPersistsAndResetDismissesIt() {
         val e = TimerEngine { "run" }; val started = e.apply(Snapshot(), Command.Start(setOf(0)), 0).snapshot
         val done = e.reconcile(started, 300_000)

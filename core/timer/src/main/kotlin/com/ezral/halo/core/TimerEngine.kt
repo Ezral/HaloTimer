@@ -30,6 +30,8 @@ const val MAX_HOURS_MS = 359_999_000L
     val haptic: HapticStyle = HapticStyle.DOUBLE_TAP,
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = false,
+    val soundUri: String? = null,
+    val soundName: String? = null,
     val morse: String = "TIME",
     val hapticRepeat: HapticRepeat = HapticRepeat.ONCE,
     val customRepeatCount: Int = 2,
@@ -93,6 +95,7 @@ const val MAX_HOURS_MS = 359_999_000L
     val repeatDurationMs: Long = 30_000,
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = false,
+    val soundUri: String? = null,
 )
 @Serializable data class Snapshot(
     val version: Int = 1,
@@ -144,7 +147,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                         val completedRound = s.round + skip - 1
                         val skippedId = if (completedRound == 1L) "${s.id}:${s.steps.lastIndex}" else "${s.id}:r$completedRound:${s.steps.lastIndex}"
                         events += AlertEvent(skippedId, d.id, boundary, false,
-                            d.alertPattern(), d.morse, HapticRepeat.ONCE, vibrationEnabled = d.vibrates(), soundEnabled = d.soundEnabled)
+                            d.alertPattern(), d.morse, HapticRepeat.ONCE, vibrationEnabled = d.vibrates(), soundEnabled = d.soundEnabled, soundUri = d.soundUri)
                         s = s.copy(round = s.round + skip, deadlineMs = s.deadlineMs + skip * duration,
                             revision = s.revision + skip * s.steps.size, cycleCompletedAtMs = boundary,
                             visualUntilMs = boundary + 2_000, alertStartedAtMs = boundary)
@@ -157,7 +160,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 events += AlertEvent(eventId, track.definition.id, s.deadlineMs, final,
                     track.definition.alertPattern(), track.definition.morse, if (cycleEnd && !final) HapticRepeat.ONCE else track.definition.hapticRepeat,
                     track.definition.customRepeatCount, track.definition.repeatDurationMs,
-                    track.definition.vibrates(), track.definition.soundEnabled)
+                    track.definition.vibrates(), track.definition.soundEnabled, track.definition.soundUri)
                 if (final) {
                     // A final alert remains animated until the user dismisses/resets it.
                     s = s.copy(status = Status.COMPLETED, remainingMs = 0, revision = s.revision + 1, visualUntilMs = Long.MAX_VALUE, alertStartedAtMs = s.deadlineMs, cycleCompletedAtMs = s.deadlineMs)

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -83,9 +84,13 @@ fun HaloScreen(
     val overlay = remember(permissionRevision) { Settings.canDrawOverlays(context) }
     val exact = remember(permissionRevision) { c.alarmScheduler.exactAvailable() }
     val notifications = remember(permissionRevision) { Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED }
-    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-    LaunchedEffect(lifecycle) {
-        while (true) { if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) { c.execute(Command.Tick); now = SystemClock.elapsedRealtime() }; delay(200) }
+    // Keep clock reads in countdown children/drawing; settings do not depend on every tick.
+    val clock = remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    val running = state.tracks.any { it.session?.status == Status.RUNNING }
+    LaunchedEffect(lifecycle, running) {
+        if (running) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) { c.execute(Command.Tick); clock.longValue = SystemClock.elapsedRealtime(); delay(200) }
+        }
     }
     LaunchedEffect(selected, selectedStep) { onSelect(selected, selectedStep) }
     val dark = prefs.theme == "Dark" || (prefs.theme == "System" && isSystemInDarkTheme())
@@ -154,11 +159,7 @@ fun HaloScreen(
                                 Text(t.definition.name, maxLines = 1, minLines = 1, overflow = TextOverflow.Ellipsis,
                                     fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
                             }
-                            Text(t.session?.let { formatTime(it.remaining(now), t.definition.hoursEnabled) }
-                                ?: if (t.definition.active) "Active" else "Inactive",
-                                maxLines = 1, minLines = 1, overflow = TextOverflow.Ellipsis,
-                                fontFamily = CountdownMono, fontSize = 11.sp, lineHeight = 18.sp,
-                                color = scheme.onSurfaceVariant)
+                            TimerTabStatus(t, clock)
                         }
                     }
                 }
@@ -202,10 +203,10 @@ fun HaloScreen(
                     if (d.sequence && d.repetitions != 1) Text("Repeats the whole sequence", fontSize = 12.sp, color = scheme.onSurfaceVariant)
                     if (s != null) {
                         Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
-                        Text(formatTime(s.remaining(now), d.hoursEnabled), fontFamily = CountdownMono, fontSize = if (d.hoursEnabled) 36.sp else 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        SessionCountdown(s, d.hoursEnabled, clock)
                         if (s.steps.size > 1) Text("${s.index + 1} / ${s.steps.size}  ·  ${s.steps[s.index].name}", color = scheme.onSurfaceVariant)
                         if (s.repetitions != 1) Text(s.roundLabel(), color = accent, fontFamily = CountdownMono)
-                        LinearProgressIndicator(progress = { s.progress(now) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)
+                        LinearProgressIndicator(progress = { s.progress(clock.longValue) }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)), color = accent)
                         if (s.status == Status.RUNNING || s.status == Status.PAUSED) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             TextButton(onClick = { c.submit(Command.Adjust(c.target(selected), -30_000)) }) { Text("− 30s") }
                             TextButton(onClick = { c.submit(Command.Adjust(c.target(selected), 30_000)) }) { Text("+ 30s") }
@@ -263,7 +264,10 @@ fun HaloScreen(
                         TextButton(onClick = { if (overlay) onPreview(selected) else onOverlayPermission() }) { Text("Preview edge alert") }
                         TextButton(onClick = { focus.clearFocus(); onFullScreen() }, enabled = ready) { Text("Open full-screen timer") }
                         if (d.vibrates()) TextButton(onClick = { c.haptics.preview(d.copy(soundEnabled = false)) }) { Text("Test vibration once") }
-                        if (d.soundEnabled) TextButton(onClick = { c.haptics.preview(d.copy(vibrationEnabled = false)) }) { Text("Test sound once") }
+                        if (d.soundEnabled) {
+                            TextButton(onClick = { c.haptics.preview(d.copy(vibrationEnabled = false)) }) { Text("Test sound once") }
+                            if (d.soundUri != null) TextButton(onClick = { c.haptics.cancel(-1) }) { Text("Stop sound preview") }
+                        }
                     }
                     if (prefs.completionEnabled) {
                         var showCompletionPreview by rememberSaveable { mutableStateOf(false) }
@@ -348,8 +352,8 @@ fun HaloScreen(
                 HaloCard {
                     Text("Sound & vibration", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Vibration", d.vibrates()) { c.submit(Command.Edit(d.copy(vibrationEnabled = it, haptic = d.alertPattern()))) }
-                    SettingToggle("Sound", d.soundEnabled) { c.submit(Command.Edit(d.copy(soundEnabled = it))) }
-                    if (d.soundEnabled) Text("Soft tone · uses alarm volume", color = scheme.onSurfaceVariant, fontSize = 12.sp)
+                    SettingToggle("Sound", d.soundEnabled) { if (!it) c.haptics.cancel(-1); c.submit(Command.Edit(d.copy(soundEnabled = it))) }
+                    if (d.soundEnabled) AlarmSoundSetting(c, selected)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         HapticStyle.entries.filterNot { it == HapticStyle.OFF }.forEach { style -> FilterChip(d.alertPattern() == style, { c.submit(Command.Edit(d.copy(haptic = style))) }, { Text(when (style) { HapticStyle.OFF -> "Off"; HapticStyle.DOUBLE_TAP -> "Double tap"; HapticStyle.MORSE -> "Morse" }) }) }
                     }
@@ -548,4 +552,19 @@ private fun DurationEditor(value: Long, hoursEnabled: Boolean = false, compact: 
             }
         }
     }
+}
+
+@Composable
+private fun TimerTabStatus(track: Track, clock: State<Long>) {
+    Text(track.session?.let { formatTime(it.remaining(clock.value), track.definition.hoursEnabled) }
+        ?: if (track.definition.active) "Active" else "Inactive",
+        maxLines = 1, minLines = 1, overflow = TextOverflow.Ellipsis,
+        fontFamily = CountdownMono, fontSize = 11.sp, lineHeight = 18.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun SessionCountdown(session: Session, hours: Boolean, clock: State<Long>) {
+    Text(formatTime(session.remaining(clock.value), hours), fontFamily = CountdownMono,
+        fontSize = if (hours) 36.sp else 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 }

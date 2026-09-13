@@ -30,6 +30,12 @@ Requires **Android 8.0 or newer**. Version 1.0 is the product milestone; the dow
 
 Timer names support 1–24 characters; step names support 1–60 characters.
 
+## Custom alarm audio
+
+Enable **Sound**, then choose **Choose audio file** to select an MP3 or another supported audio file through Android's file picker. The selected sound is saved with the timer and its presets. **Use soft tone** restores the built-in tone.
+
+Custom audio plays once per alert repeat and uses alarm volume. **Test sound once** previews up to 10 seconds; **Stop sound preview** ends it early. Timed alerts stop at their configured limit. If the source file becomes unavailable, Halo reports it and falls back to the soft tone.
+
 ## Light around the display
 
 The halo uses full-display coordinates, including the status and navigation bar regions. Three 4dp colored tracks are separated by 2dp gaps. Supported Android versions provide physical corner radii for the light's path.
