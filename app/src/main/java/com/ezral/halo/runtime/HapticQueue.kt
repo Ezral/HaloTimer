@@ -10,9 +10,11 @@ import kotlinx.coroutines.*
 
 /** Serial, fair cycles: an until-dismiss alert never monopolizes the device vibrator. */
 @Suppress("DEPRECATION")
-class HapticQueue(context: Context, private val scope: CoroutineScope) {
+class HapticQueue(context: Context, private val scope: CoroutineScope, private val onSoundUnavailable: () -> Unit = {}) {
     private val vibrator = context.getSystemService(Vibrator::class.java)
     private val sound = PatternSound(context)
+    private val customSound = CustomAlarmSound(context)
+    val customSoundPlaying = customSound.playing
     private val repeats = HapticRepeats()
     private var worker: Job? = null
     private var generation = 0L
@@ -22,7 +24,7 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
         channels[d.id] = d.vibrates() to d.soundEnabled
         if (playingTrack == d.id) {
             if (!d.vibrates()) vibrator.cancel()
-            if (!d.soundEnabled) sound.stop()
+            if (!d.soundEnabled) { sound.stop(); customSound.stop() }
         }
     }
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
@@ -43,18 +45,32 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
                 try {
                     playingTrack = cycle.event.track
                     val outputs = channels[cycle.event.track] ?: (cycle.event.vibrationEnabled to cycle.event.soundEnabled)
-                    val samples = if (outputs.second) withContext(Dispatchers.Default) { AlertTone.pcm(cycle.timings) } else null
-                    // A failed sound output must not suppress the independent vibration output.
-                    if (samples != null && (channels[cycle.event.track]?.second ?: cycle.event.soundEnabled)) runCatching { sound.play(samples) }
-                    if ((channels[cycle.event.track]?.first ?: cycle.event.vibrationEnabled) && cycle.event.haptic != HapticStyle.OFF && vibrator.hasVibrator()) {
-                        runCatching { vibrator.vibrate(VibrationEffect.createWaveform(cycle.timings, -1), attributes) }
+                    coroutineScope {
+                        val audio = if (outputs.second) async {
+                            val uri = cycle.event.soundUri
+                            val budget = if (cycle.event.track == -1) SystemClock.elapsedRealtime() + 10_000L else cycle.stopAt
+                            val customPlayed = uri != null && customSound.play(uri, budget)
+                            if (!customPlayed && (channels[cycle.event.track]?.second ?: cycle.event.soundEnabled)) {
+                                if (uri != null) onSoundUnavailable()
+                                val samples = withContext(Dispatchers.Default) { AlertTone.pcm(cycle.timings) }
+                                if (channels[cycle.event.track]?.second ?: cycle.event.soundEnabled) {
+                                    runCatching { sound.play(samples) }
+                                    delay(cycle.timings.sum().coerceAtMost((cycle.stopAt - SystemClock.elapsedRealtime()).coerceAtLeast(0)))
+                                }
+                            }
+                        } else null
+                        // Vibration remains independent of custom audio preparation or failure.
+                        if ((channels[cycle.event.track]?.first ?: cycle.event.vibrationEnabled) && cycle.event.haptic != HapticStyle.OFF && vibrator.hasVibrator()) {
+                            runCatching { vibrator.vibrate(VibrationEffect.createWaveform(cycle.timings, -1), attributes) }
+                        }
+                        delay(cycle.timings.sum())
+                        audio?.await()
                     }
-                    delay(cycle.timings.sum())
-                    sound.stop()
+                    sound.stop(); customSound.stop()
                     repeats.finish(cycle, SystemClock.elapsedRealtime())
                 } catch (e: CancellationException) { throw e }
                 catch (_: RuntimeException) { repeats.cancel(cycle.event.track) }
-                finally { if (token == generation) { playingTrack = null; sound.stop() } }
+                finally { if (token == generation) { playingTrack = null; sound.stop(); customSound.stop() } }
             }
         }
     }
@@ -62,12 +78,12 @@ class HapticQueue(context: Context, private val scope: CoroutineScope) {
         if (repeats.hasRealAlert) return
         cancel(-1)
         // Preview is one complete pattern; real timer alerts use the configured repeat policy.
-        enqueue(AlertEvent("preview:${SystemClock.elapsedRealtime()}", -1, SystemClock.elapsedRealtime(), false, d.alertPattern(), d.morse, vibrationEnabled = d.vibrates(), soundEnabled = d.soundEnabled))
+        enqueue(AlertEvent("preview:${SystemClock.elapsedRealtime()}", -1, SystemClock.elapsedRealtime(), false, d.alertPattern(), d.morse, vibrationEnabled = d.vibrates(), soundEnabled = d.soundEnabled, soundUri = d.soundUri))
     }
     fun cancel(id: Int) {
         if (repeats.cancel(id)) {
-            generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop(); start()
+            generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop(); customSound.stop(); start()
         }
     }
-    fun cancelAll() { repeats.clear(); generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop() }
+    fun cancelAll() { repeats.clear(); generation++; worker?.cancel(); worker = null; playingTrack = null; vibrator.cancel(); sound.stop(); customSound.stop() }
 }

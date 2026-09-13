@@ -28,7 +28,13 @@ class HaloPresetTest {
         c.preferences.theme("System"); c.preferences.dismissAllOnMenu(false)
     } } }
     private fun execute(command: Command) = runBlocking { withContext(Dispatchers.Main) { c.execute(command) } }.also { assertTrue("Command failed: $command", it) }
+    private fun expandPresets() {
+        if (rule.onAllNodesWithContentDescription("Expand presets").fetchSemanticsNodes().isNotEmpty()) {
+            rule.onNodeWithContentDescription("Expand presets").performScrollTo().performClick()
+        }
+    }
     private fun browse(count: Int = 1) {
+        expandPresets()
         rule.onNodeWithText("Browse presets ($count)").performScrollTo().performClick()
         rule.onNodeWithText("Saved presets").assertIsDisplayed()
     }
@@ -96,6 +102,7 @@ class HaloPresetTest {
         execute(Command.SavePreset(0, "Deep focus"))
         execute(Command.Edit(Definition(1, name = "Tea", durationMs = 180_000, color = 0xFF57DDB4)))
         execute(Command.SavePreset(1, "Afternoon tea"))
+        expandPresets()
         heights().forEach { assertEquals(original.first(), it, 1f) }
         execute(Command.Start(setOf(0)))
         heights().forEach { assertEquals(original.first(), it, 1f) }
@@ -118,6 +125,50 @@ class HaloPresetTest {
         heights().forEach { assertEquals(original.first(), it, 1f) }
     }
 
+    @Test fun collapsedPresetsKeepSaveVisibleAndMatchingNamesRequireConfirmation() {
+        rule.onNodeWithContentDescription("Expand presets").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithContentDescription("Save current timer as preset").assertIsDisplayed()
+        execute(Command.SavePreset(0, "Focus"))
+        val original = c.state.value.presets.single()
+        expandPresets()
+        rule.onNodeWithContentDescription("Use preset Focus").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Collapse presets").performClick()
+        rule.onNodeWithContentDescription("Use preset Focus").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Save current timer as preset").assertIsDisplayed()
+        rule.activityRule.scenario.recreate()
+        rule.onNodeWithContentDescription("Expand presets").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Save current timer as preset").assertIsDisplayed()
+        screenshot("23-collapsed-presets")
+        execute(Command.Edit(Definition(0, durationMs = 600_000, repetitions = 3)))
+        rule.onNodeWithContentDescription("Save current timer as preset").performClick()
+        rule.onNodeWithContentDescription("Preset name input").performTextReplacement("Focus")
+        rule.onNodeWithContentDescription("Confirm Save preset").performClick()
+        rule.onNodeWithText("Update existing preset?").assertIsDisplayed()
+        assertEquals(original, c.state.value.presets.single())
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithContentDescription("Preset name input").assert(hasText("Focus"))
+        assertEquals(original, c.state.value.presets.single())
+        rule.onNodeWithContentDescription("Preset name input").performTextReplacement(" fOCUS ")
+        rule.onNodeWithContentDescription("Confirm Save preset").performClick()
+        rule.onNodeWithText("Update existing preset?").assertIsDisplayed()
+        screenshot("24-update-existing-preset")
+        rule.onNodeWithContentDescription("Confirm Update preset").performClick()
+        rule.waitUntil(5000) { c.state.value.presets.single().definition.durationMs == 600_000L }
+        val updated = c.state.value.presets.single()
+        assertEquals(original.id, updated.id)
+        assertEquals("Focus", updated.name)
+        assertEquals(3, updated.definition.repetitions)
+        assertEquals(listOf(updated), runBlocking { HaloStore(rule.activity).load()!!.presets })
+        rule.onNodeWithContentDescription("Expand presets").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Save current timer as preset").assertIsDisplayed().performClick()
+        rule.onNodeWithContentDescription("Preset name input").performTextReplacement("Second timer")
+        rule.onNodeWithContentDescription("Confirm Save preset").performClick()
+        rule.waitUntil(5000) { c.state.value.presets.size == 2 }
+        assertEquals(updated, c.state.value.presets.first { it.id == original.id })
+        expandPresets()
+        rule.onNodeWithContentDescription("Use preset Focus").assertIsDisplayed()
+    }
+
     @Test fun sequencePresetsAndPreviewHubRemainUsableInBothThemes() {
         execute(Command.Edit(Definition(0, name = "Coffee", sequence = true, repetitions = 0,
             steps = listOf(Step("Bloom", 30_000), Step("Pour", 90_000)), linePalette = LinePalette.AURORA,
@@ -128,7 +179,10 @@ class HaloPresetTest {
         rule.waitUntil(5000) { c.state.value.presets.size == 1 }
         rule.onNodeWithContentDescription("Save current timer as preset").performClick()
         rule.onNodeWithContentDescription("Preset name input").performTextReplacement(" morning COFFEE ")
-        rule.onNodeWithText("Save").assertIsNotEnabled()
+        rule.onNodeWithText("Save").assertIsEnabled().performClick()
+        rule.onNodeWithText("Update existing preset?").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        rule.onNodeWithContentDescription("Preset name input").assert(hasText(" morning COFFEE "))
         rule.onNodeWithText("Cancel").performClick()
         execute(Command.Edit(Definition(0)))
         browse()

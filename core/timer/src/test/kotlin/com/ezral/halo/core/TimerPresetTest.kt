@@ -25,7 +25,7 @@ class TimerPresetTest {
         val configured = Definition(0, name = "Coffee", sequence = true, hoursEnabled = true, repetitions = 3,
             steps = listOf(Step("Bloom", 40_000), Step("Pour", 7_200_000)), color = 0xFF0088FF,
             customColor = 0xFF0088FF, linePalette = LinePalette.AURORA, haptic = HapticStyle.MORSE,
-            morse = "C", soundEnabled = true, hapticRepeat = HapticRepeat.TIMED, repeatDurationMs = 12_000,
+            morse = "C", soundEnabled = true, soundUri = "content://audio/coffee.mp3", soundName = "Coffee.mp3", hapticRepeat = HapticRepeat.TIMED, repeatDurationMs = 12_000,
             alert = AlertStyle.DOUBLE_PONG, glow = .8f, showBarName = false, rotateBarText = true)
         var s = apply(Snapshot(), Command.Edit(configured))
         s = apply(s, Command.SavePreset(0, " Morning coffee "))

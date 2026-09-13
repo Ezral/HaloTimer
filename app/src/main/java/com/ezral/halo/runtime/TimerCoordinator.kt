@@ -26,7 +26,7 @@ class TimerCoordinator(private val context: Context) {
     val ready = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
     val alarmScheduler = AlarmScheduler(context)
-    val haptics = HapticQueue(context, scope)
+    val haptics = HapticQueue(context, scope) { error.value = "Custom sound unavailable. Using the soft tone; choose the audio file again." }
     val notifications = HaloNotifications(context)
     private var loaded = false
     private var storageFailed = false
@@ -69,7 +69,7 @@ class TimerCoordinator(private val context: Context) {
                 haptics.updateChannels(after.definition)
                 if (before.session?.id != after.session?.id || before.session?.index != after.session?.index || before.session?.round != after.session?.round ||
                     !after.definition.active || (!after.definition.vibrates() && !after.definition.soundEnabled) ||
-                    before.definition.haptic != after.definition.haptic || before.definition.morse != after.definition.morse || after.session?.status == Status.PAUSED) {
+                    before.definition.soundUri != after.definition.soundUri || before.definition.haptic != after.definition.haptic || before.definition.morse != after.definition.morse || after.session?.status == Status.PAUSED) {
                     haptics.cancel(after.definition.id)
                 }
             }
