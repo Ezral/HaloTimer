@@ -8,6 +8,7 @@ import android.view.WindowInsets
 import android.view.RoundedCorner
 import android.view.View
 import com.ezral.halo.core.*
+import com.ezral.halo.graphics.perimeterSegment
 import kotlin.math.*
 
 /** One decorative, non-interactive surface for every lane. Geometry is cached. */
@@ -18,6 +19,7 @@ class EdgeView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.BUTT }
     private val measures = mutableListOf<PathMeasure>()
     private val segment = Path()
+    private val wrapped = Path()
     private val path = Path()
     private val rect = RectF()
     private val widthDp = resources.displayMetrics.density * 4f
@@ -60,11 +62,7 @@ class EdgeView(context: Context) : View(context) {
         geometryCount = tracks.size
     }
     private fun drawPart(canvas: Canvas, measure: PathMeasure, start: Float, fraction: Float) {
-        val from = ((start % 1f) + 1f) % 1f
-        val to = from + fraction.coerceIn(0f, 1f)
-        segment.reset()
-        measure.getSegment(from * measure.length, min(to, 1f) * measure.length, segment, true)
-        if (to > 1) measure.getSegment(0f, (to - 1) * measure.length, segment, false)
+        perimeterSegment(measure, segment, wrapped, start, fraction)
         canvas.drawPath(segment, paint)
     }
     override fun onDraw(canvas: Canvas) {

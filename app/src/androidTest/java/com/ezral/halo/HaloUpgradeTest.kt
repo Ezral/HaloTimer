@@ -30,15 +30,15 @@ class HaloUpgradeTest {
         c.preferences.dockTextMotion(true)
     } } }
     @Test fun hoursNamePaletteAndIndependentSoundSettings() {
-        rule.onNodeWithContentDescription("Edit timer name").performClick()
+        rule.onNodeWithContentDescription("Edit timer name").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Timer name input").performTextReplacement("Recovery")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.name == "Recovery" }
-        rule.onNodeWithContentDescription("Hours", useUnmergedTree = true).performClick()
+        rule.onNodeWithContentDescription("Hours", useUnmergedTree = true).performScrollTo().performClick()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.hoursEnabled }
-        rule.onNodeWithContentDescription("Increase hours").performClick()
+        rule.onNodeWithContentDescription("Increase hours").performScrollTo().performClick()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 3_900_000L }
-        rule.onNodeWithContentDescription("Decrease seconds").performClick()
+        rule.onNodeWithContentDescription("Decrease seconds").performScrollTo().performClick()
         rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 3_899_000L }
         rule.onNodeWithText("Custom line color").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Color hue").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(180f) }
@@ -60,6 +60,7 @@ class HaloUpgradeTest {
             c.execute(Command.Edit(Definition(0, name="Long recovery timer", sequence=true,
                 steps=listOf(Step("Rest and recover before the next training round", 60000)))))
         } }
+        rule.onNodeWithText("Show completion preview").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Completion text preview").performScrollTo()
         val small = rule.onNodeWithContentDescription("Completion text preview").fetchSemanticsNode().size.height
         runBlocking { c.preferences.completionTextSp(48) }

@@ -65,6 +65,33 @@ class HaloFullScreenTest {
         val dir=File("/sdcard/Download/halo-qa");dir.mkdirs()
         File(dir,"fullscreen-$name.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG,100,it) };image.recycle()
     }
+    private fun pinch(inward:Boolean, startingControl:String? = null) {
+        val image=automation.takeScreenshot()!!
+        val width=image.width.toFloat();val height=image.height.toFloat();image.recycle()
+        val from=if(inward) .20f else .10f;val to=if(inward) .10f else .20f
+        val target=startingControl?.let { description ->
+            android.graphics.Rect().also { node(description)!!.getBoundsInScreen(it) }
+        }
+        val centerX=target?.let { it.centerX()+width*from } ?: width*.5f
+        val centerY=target?.centerY()?.toFloat() ?: height*.40f
+        val down=SystemClock.uptimeMillis()
+        val properties=Array(2) { id -> android.view.MotionEvent.PointerProperties().apply {
+            this.id=id;toolType=android.view.MotionEvent.TOOL_TYPE_FINGER
+        } }
+        fun event(action:Int,count:Int,spread:Float) {
+            val coords=Array(count) { id -> android.view.MotionEvent.PointerCoords().apply {
+                x=centerX+width*(if(id==0) -spread else spread);y=centerY;pressure=1f;size=1f
+            } }
+            val motion=android.view.MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,count,properties,coords,
+                0,0,1f,1f,0,0,android.view.InputDevice.SOURCE_TOUCHSCREEN,0)
+            try { assertTrue(automation.injectInputEvent(motion,true)) } finally { motion.recycle() }
+        }
+        event(android.view.MotionEvent.ACTION_DOWN,1,from)
+        event(android.view.MotionEvent.ACTION_POINTER_DOWN or (1 shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,from)
+        for(i in 1..16) { SystemClock.sleep(16);event(android.view.MotionEvent.ACTION_MOVE,2,from+(to-from)*i/16f) }
+        event(android.view.MotionEvent.ACTION_POINTER_UP or (1 shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,to)
+        event(android.view.MotionEvent.ACTION_UP,1,to)
+    }
     @Test fun layoutsIndependentControlsCompletionAndOverlayReturn() {
         automation.serviceInfo=automation.serviceInfo.apply { flags=flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS }
         shell("appops set ${app.packageName} SYSTEM_ALERT_WINDOW allow")
@@ -82,7 +109,23 @@ class HaloFullScreenTest {
         val scenario=ActivityScenario.launch(FullScreenActivity::class.java)
         try {
             await("Full-screen shown") { OverlayVisibility.fullScreenVisible && node("Gym rest countdown")!=null }
+            assertNull("Entry has no header",node("Full-screen display controls"))
+            val before=android.graphics.Rect();node("Gym rest countdown")!!.getBoundsInScreen(before)
             capture("one")
+            pinch(true,"Start Gym rest full screen")
+            await("Pinch inward reveals header") { node("Full-screen display controls")!=null }
+            val after=android.graphics.Rect();node("Gym rest countdown")!!.getBoundsInScreen(after)
+            assertEquals("Header overlays without resizing the timer",before,after)
+            assertTrue("Pinching cannot start any timer",c.state.value.tracks.all { it.session==null })
+            capture("header")
+            pinch(false)
+            await("Pinch outward hides header") { node("Full-screen display controls")==null }
+            val display=android.graphics.Rect();node("Full-screen timer display")!!.getBoundsInScreen(display)
+            val screen=automation.takeScreenshot()!!
+            try { assertEquals("Display reaches top",0,display.top);assertEquals("Display reaches bottom",screen.height,display.bottom) }
+            finally { screen.recycle() }
+            pinch(true)
+            await("Header remains reachable") { node("Full-screen display controls")!=null }
             runBlocking { c.preferences.fullScreenMask(3) }
             await("Two timers shown") { node("Pour over countdown")!=null };capture("two")
             runBlocking { c.preferences.fullScreenMask(7) }

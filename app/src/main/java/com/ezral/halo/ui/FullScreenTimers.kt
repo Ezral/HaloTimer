@@ -1,6 +1,7 @@
 package com.ezral.halo.ui
 
 import android.os.SystemClock
+import com.ezral.halo.graphics.perimeterSegment
 import android.view.WindowManager
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,21 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -53,10 +69,15 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
     val background = if (dark) Color(0xFF0B0D13) else Color(0xFFF6F7FC)
     val foreground = if (dark) Color(0xFFF4F5FC) else Color(0xFF171B28)
     var displaySettings by remember { mutableStateOf(false) }
-    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    var headerVisible by rememberSaveable { mutableStateOf(false) }
+    val clock = remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    val animateFrames = tracks.any { it.session?.let { s -> s.status == Status.RUNNING || s.visualUntilMs > SystemClock.elapsedRealtime() } == true }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-        while (isActive) { withFrameNanos { now = SystemClock.elapsedRealtime() }; delay(16) }
+    LaunchedEffect(lifecycle, animateFrames) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        while (isActive) {
+            withFrameNanos { clock.longValue = SystemClock.elapsedRealtime() }
+            if (!animateFrames) delay(200)
+        }
     } }
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
         while (isActive) { c.execute(Command.Tick); delay(200) }
@@ -69,18 +90,38 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), typography = HaloTypography) {
-        Column(Modifier.fillMaxSize().background(background).safeDrawingPadding().semantics { contentDescription = "Full-screen timer display" }) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { displaySettings = true }, modifier = Modifier.semantics { contentDescription = "Full-screen display controls" }) { Text("☰", color = foreground, fontSize = 22.sp) }
-                Text("halo", Modifier.weight(1f), color = foreground, fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                IconButton(onClick = { onStart(tracks.map { it.definition.id }.toSet()) }, enabled = ready && tracks.isNotEmpty(), modifier = Modifier.semantics { contentDescription = "Start displayed timers" }) { Text("▶▶", color = foreground, fontSize = 18.sp) }
-                IconButton(onClick = { c.submit(Command.StopAll) }, enabled = state.tracks.any { it.session != null }, modifier = Modifier.semantics { contentDescription = "Stop all timers" }) { Text("■", color = foreground, fontSize = 20.sp) }
-                IconButton(onClick = onOverlay, modifier = Modifier.semantics { contentDescription = "Return to overlay" }) { Text("↗", color = foreground, fontSize = 25.sp) }
+        Box(Modifier.fillMaxSize().background(background)
+            .semantics {
+                contentDescription = "Full-screen timer display"
+                stateDescription = if(headerVisible) "Header shown" else "Header hidden"
+                customActions = listOf(CustomAccessibilityAction(if(headerVisible) "Hide header" else "Show header") {
+                    headerVisible = !headerVisible; true
+                })
             }
-            error?.let { message -> Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth().clickable { c.error.value = null }.padding(12.dp)) }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed=false, pass=PointerEventPass.Initial)
+                    var zoom = 1f
+                    var multiTouch = false
+                    var switched = false
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if(event.changes.count { it.pressed } >= 2) {
+                            multiTouch = true
+                            zoom *= event.calculateZoom()
+                            if(!switched && (zoom < .82f || zoom > 1.22f)) {
+                                headerVisible = zoom < 1f
+                                switched = true
+                            }
+                        }
+                        // Claim multi-touch before child buttons see it; ordinary taps still work.
+                        if(multiTouch) event.changes.forEach { it.consume() }
+                    } while(event.changes.any { it.pressed })
+                }
+            }) {
             if (tracks.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 TextButton(onClick = onSettings) { Text("Choose active timers in settings") }
-            } else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            } else BoxWithConstraints(Modifier.fillMaxSize()) {
                 val landscape = maxWidth > maxHeight
                 val panels = remember(tracks.size, landscape, prefs.fullScreenLayout) { timerPanels(tracks.size, landscape, prefs.fullScreenLayout == "Pizza") }
                 val shape = rememberPhoneShape()
@@ -94,12 +135,26 @@ fun FullScreenTimers(c: TimerCoordinator, onSettings: () -> Unit, onOverlay: () 
                 val viewportHeight = (maxHeight-top-bottom).coerceAtLeast(1.dp)
                 Box(Modifier.fillMaxSize().absolutePadding(left=left,top=top,right=right,bottom=bottom)) {
                 tracks.forEachIndexed { index, track -> key(track.definition.id) {
-                    TimerSection(track, panels[index], tracks.size, landscape, now, prefs, dark, foreground, viewportWidth, viewportHeight, radii,
+                    TimerSection(track, panels[index], tracks.size, landscape, clock, prefs, dark, foreground, viewportWidth, viewportHeight, radii,
                         onPrimary = { if (track.session?.status == Status.RUNNING) c.submit(Command.Pause(track.definition.id)) else onStart(setOf(track.definition.id)) },
                         onReset = { c.submit(Command.Rewind(track.definition.id)) }, onStop = { c.submit(Command.Reset(track.definition.id)) })
                 } }
                 }
             }
+            AnimatedVisibility(headerVisible, modifier=Modifier.align(Alignment.TopCenter),
+                enter=fadeIn(tween(180))+slideInVertically(tween(180)) { -it },
+                exit=fadeOut(tween(160))+slideOutVertically(tween(160)) { -it }) {
+            Row(Modifier.fillMaxWidth().background(background.copy(alpha=.96f)).safeDrawingPadding().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { displaySettings = true }, modifier = Modifier.semantics { contentDescription = "Full-screen display controls" }) { Text("☰", color = foreground, fontSize = 22.sp) }
+                Text("halo", Modifier.weight(1f), color = foreground, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                IconButton(onClick = { onStart(tracks.map { it.definition.id }.toSet()) }, enabled = ready && tracks.isNotEmpty(), modifier = Modifier.semantics { contentDescription = "Start displayed timers" }) { Text("▶▶", color = foreground, fontSize = 18.sp) }
+                IconButton(onClick = { c.submit(Command.StopAll) }, enabled = state.tracks.any { it.session != null }, modifier = Modifier.semantics { contentDescription = "Stop all timers" }) { Text("■", color = foreground, fontSize = 20.sp) }
+                IconButton(onClick = onOverlay, modifier = Modifier.semantics { contentDescription = "Return to overlay" }) { Text("↗", color = foreground, fontSize = 25.sp) }
+            }
+            }
+            error?.let { message -> Text(message, color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().fillMaxWidth()
+                    .background(background).clickable { c.error.value = null }.padding(12.dp)) }
         }
         if (displaySettings) FullScreenDisplayDialog(c, prefs, state, onSettings) { displaySettings = false }
     }
@@ -155,9 +210,10 @@ private fun DisplaySlider(label:String,value:Int,range:IntRange,unit:String,chan
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape: Boolean, now: Long,
+private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape: Boolean, clock: LongState,
     prefs: Preferences, dark: Boolean, foreground: Color, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp, radii: List<Float>,
     onPrimary: () -> Unit, onReset: () -> Unit, onStop: () -> Unit) {
+    val now = clock.longValue
     val d = track.definition; val s = track.session
     val accent = Color(d.color)
     // Pale custom colors still need legible large digits in the light theme.
@@ -188,8 +244,9 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
     val paths = remember(panel,width,height,density.density,prefs.fullScreenLineDp,prefs.fullScreenGapDp,radii) {
         with(density) { sectionPaths(panel,width.toPx(),height.toPx(),prefs.fullScreenLineDp.dp.toPx(),prefs.fullScreenGapDp.dp.toPx(),radii.map { it.dp.toPx() }) }
     }
-    val measure = remember(paths) { PathMeasure().apply { setPath(paths.line, true) } }
+    val measure = remember(paths) { android.graphics.PathMeasure(paths.line.asAndroidPath(), true) }
     val progress = remember(paths) { Path() }
+    val wrapped = remember(paths) { android.graphics.Path() }
     val brush = remember(colors,panel,width,height,density.density) {
         with(density) { Brush.sweepGradient(colors + colors.first(),center=Offset(panel.x*width.toPx(),panel.y*height.toPx())) }
     }
@@ -198,9 +255,9 @@ private fun TimerSection(track: Track, panel: TimerPanel, count: Int, landscape:
         drawPath(path, accent.copy(alpha = if (dark) .09f else .055f))
         fun line(start: Float, fraction: Float, alpha: Float = 1f) {
             // Keep full outlines closed so the starting corner has a proper join.
-            if(fraction<1f) perimeterSegment(measure, progress, start, fraction)
+            if(fraction<1f) perimeterSegment(measure, progress.asAndroidPath(), wrapped, start, fraction)
             clipPath(path) { drawPath(if(fraction>=1f) paths.line else progress, brush, alpha=alpha,
-                style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Butt, join=StrokeJoin.Round)) }
+                style=Stroke(prefs.fullScreenLineDp.dp.toPx(), cap=StrokeCap.Round, join=StrokeJoin.Round)) }
         }
         line(0f,1f,.14f)
         if(s != null && s.visualUntilMs > now) {
