@@ -5,6 +5,45 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class UpgradeTest {
+    @Test fun hoursToggleUsesCommittedElevenMinuteDuration() {
+        val engine = TimerEngine()
+        val original = Definition(0, hoursEnabled = true, durationMs = 7_860_000)
+        var state = Snapshot(tracks = listOf(Track(original)))
+        state = engine.apply(state, Command.Edit(original.copy(durationMs = 660_000)), 0).snapshot
+        val result = engine.apply(state, Command.SetHours(0, false), 0)
+        assertNull(result.error)
+        assertFalse(result.snapshot.tracks[0].definition.hoursEnabled)
+        assertEquals(660_000L, result.snapshot.tracks[0].definition.durationMs)
+    }
+    @Test fun unusedModeDoesNotLockHoursButKeepsItsLongDuration() {
+        val engine = TimerEngine()
+        for (sequence in listOf(false, true)) {
+            val definition = Definition(0, hoursEnabled = true, sequence = sequence,
+                durationMs = if (sequence) 7_200_000 else 660_000,
+                steps = listOf(Step("Saved step", if (sequence) 660_000 else 7_200_000)))
+            val result = engine.apply(Snapshot(tracks = listOf(Track(definition))), Command.SetHours(0, false), 0)
+            assertNull(result.error)
+            val updated = result.snapshot.tracks[0].definition
+            assertEquals(definition.copy(hoursEnabled = false), updated)
+            // The long mode still requires Hours when it becomes the active editor.
+            assertNotNull(engine.apply(result.snapshot, Command.Edit(updated.copy(sequence = !sequence)), 0).error)
+            assertNull(updated.error())
+            assertNotNull(updated.copy(durationMs = MAX_HOURS_MS + 1000).error())
+            assertNotNull(updated.copy(steps = listOf(Step(durationMs = MAX_HOURS_MS + 1000))).error())
+        }
+    }
+    @Test fun hoursToggleStillProtectsLongActiveTimersAndSteps() {
+        val engine = TimerEngine()
+        for (definition in listOf(
+            Definition(0, hoursEnabled = true, durationMs = 7_200_000),
+            Definition(0, hoursEnabled = true, sequence = true, steps = listOf(Step(durationMs = 7_200_000)))
+        )) {
+            val state = Snapshot(tracks = listOf(Track(definition)))
+            val result = engine.apply(state, Command.SetHours(0, false), 0)
+            assertNotNull(result.error)
+            assertEquals(state, result.snapshot)
+        }
+    }
     @Test fun oldSavedDefinitionsKeepHoursAndSoundOff() {
         val d = Json.decodeFromString<Definition>("""{"id":0,"haptic":"OFF"}""")
         assertFalse(d.hoursEnabled); assertFalse(d.soundEnabled); assertFalse(d.vibrates())

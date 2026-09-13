@@ -29,6 +29,23 @@ class HaloUpgradeTest {
         c.haptics.cancelAll(); c.preferences.completionEnabled(false); c.preferences.completionTextSp(28)
         c.preferences.dockTextMotion(true)
     } } }
+    @Test fun canTurnHoursOffImmediatelyAfterTypingZeroHours() {
+        runBlocking { withContext(Dispatchers.Main) {
+            c.execute(Command.Edit(Definition(0, hoursEnabled = true, durationMs = 7_860_000)))
+        } }
+        val field = hasContentDescription("Hours") and hasSetTextAction()
+        val toggle = hasContentDescription("Hours") and isToggleable()
+        rule.onNode(field, useUnmergedTree = true).performScrollTo().performTextReplacement("0")
+        // Leave the field focused: tapping the switch must commit 00:11:00 first.
+        rule.onNode(toggle, useUnmergedTree = true).performScrollTo().performClick()
+        rule.waitUntil(5000) { !c.state.value.tracks[0].definition.hoursEnabled }
+        assertEquals(660_000L, c.state.value.tracks[0].definition.durationMs)
+        rule.onNodeWithText("HRS").assertDoesNotExist()
+        rule.activityRule.scenario.recreate()
+        rule.waitUntil(5000) { c.ready.value }
+        assertFalse(c.state.value.tracks[0].definition.hoursEnabled)
+        assertEquals(660_000L, c.state.value.tracks[0].definition.durationMs)
+    }
     @Test fun hoursNamePaletteAndIndependentSoundSettings() {
         rule.onNodeWithContentDescription("Edit timer name").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Timer name input").performTextReplacement("Recovery")
