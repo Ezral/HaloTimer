@@ -106,7 +106,6 @@ fun HaloScreen(
             val editable = s == null
             val accent = Color(d.color)
             val scroll = rememberScrollState()
-            var pendingPreset by remember(selected) { mutableStateOf<List<Step>?>(null) }
             var editingName by remember(selected) { mutableStateOf(false) }
             var nameDraft by remember(selected, d.name) { mutableStateOf(d.name) }
             var editingMorse by remember { mutableStateOf(false) }
@@ -163,7 +162,6 @@ fun HaloScreen(
                         TextButton(onClick = { c.error.value = null }) { Text("Close") }
                     }
                 }
-                PresetLibrary(c, selected, onLoaded = { selectedStep = 0; presetRevision++ })
                 HaloCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(d.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
@@ -194,6 +192,7 @@ fun HaloScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth().onFocusChanged { if (!it.isFocused && count.isEmpty()) count = d.repetitions.toString() }.semantics { contentDescription = "Timer round count" })
                     }
                     if (d.sequence && d.repetitions != 1) Text("Repeats the whole sequence", fontSize = 12.sp, color = scheme.onSurfaceVariant)
+                    if (d.sequence) SequencePresets(c, selected, onLoaded = { selectedStep = 0; presetRevision++ })
                     if (s != null) {
                         Text(when (s.status) { Status.RUNNING -> "IN PROGRESS"; Status.PAUSED -> "PAUSED"; Status.COMPLETED -> "COMPLETED"; Status.INTERRUPTED -> "INTERRUPTED · RESET TO CONTINUE"; else -> "READY" }, color = scheme.primary, fontSize = 11.sp, letterSpacing = 1.sp)
                         Text(formatTime(s.remaining(now), d.hoursEnabled), fontFamily = CountdownMono, fontSize = if (d.hoursEnabled) 36.sp else 60.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -210,10 +209,6 @@ fun HaloScreen(
                             listOf(1, 5, 15, 25).forEach { minutes -> AssistChip(onClick = { c.submit(Command.Edit(d.copy(durationMs = minutes * 60_000L))) }, label = { Text("${minutes}m") }) }
                         }
                     } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { pendingPreset = pourOver }) { Text("Pour-over") }
-                            TextButton(onClick = { pendingPreset = steak }) { Text("Steak") }
-                        }
                         d.steps.forEachIndexed { index, step ->
                             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (selectedStep == index) scheme.surfaceVariant.copy(alpha = 0.6f) else Color.Transparent).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -416,10 +411,9 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  1.3.0", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.3.1", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
-            pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
             if (editingMorse) AlertDialog(onDismissRequest = { editingMorse = false }, title = { Text("Morse vibration text") }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(morseDraft, { if (it.length <= 24) morseDraft = it }, singleLine = true, label = { Text("Text") }, modifier = Modifier.semantics { contentDescription = "Morse input" })

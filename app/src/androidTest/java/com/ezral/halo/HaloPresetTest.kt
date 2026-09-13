@@ -29,8 +29,8 @@ class HaloPresetTest {
     } } }
     private fun execute(command: Command) = runBlocking { withContext(Dispatchers.Main) { c.execute(command) } }
     private fun browse(count: Int = 1) {
-        rule.onNodeWithText("Browse presets ($count)").performScrollTo().performClick()
-        rule.onNodeWithText("Saved presets").assertIsDisplayed()
+        rule.onNodeWithText("Manage presets ($count)").performScrollTo().performClick()
+        rule.onNodeWithText("Saved sequences").assertIsDisplayed()
     }
     private fun screenshot(name: String) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
@@ -39,13 +39,19 @@ class HaloPresetTest {
         }
     }
     @Test fun saveRenameUpdateReloadAndDeleteSurviveRecreationAndStorage() {
-        // Saving from a focused time field must include the uncommitted input.
+        rule.onNodeWithContentDescription("Save sequence as preset").assertDoesNotExist()
+        rule.onNodeWithText("Sequence presets").assertDoesNotExist()
+        rule.onNodeWithText("Sequence", substring = false).performClick()
+        rule.waitUntil(5000) { c.state.value.tracks[0].definition.sequence }
+        rule.onNodeWithText("Pour-over", substring = false).assertDoesNotExist()
+        rule.onNodeWithText("Steak", substring = false).assertDoesNotExist()
+        // Saving from a focused sequence field must include the uncommitted input.
         rule.onNode(hasContentDescription("Minutes") and hasSetTextAction()).performScrollTo().performClick().performTextInput("12")
-        rule.onNodeWithContentDescription("Save current timer as preset").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Save sequence as preset").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Preset name input").performTextReplacement("Focus")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5000) { c.state.value.presets.size == 1 }
-        assertEquals(720_000L, c.state.value.presets.single().definition.durationMs)
+        assertEquals(750_000L, c.state.value.presets.single().definition.steps.first().durationMs)
         val id = c.state.value.presets.single().id
         val stored = runBlocking { HaloStore(rule.activity).load()!! }
         assertEquals(c.state.value.presets, stored.presets)
@@ -57,18 +63,18 @@ class HaloPresetTest {
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5000) { c.state.value.presets.single().name == "Deep focus" }
         rule.onNodeWithText("Done").performClick()
-        execute(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 1_500_000, repetitions = 3)))
+        execute(Command.Edit(c.state.value.tracks[0].definition.copy(steps = listOf(Step("Focus", 1_500_000)), repetitions = 3)))
         browse()
         rule.onNodeWithContentDescription("Update preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Confirm Update preset").performClick()
-        rule.waitUntil(5000) { c.state.value.presets.single().definition.durationMs == 1_500_000L }
+        rule.waitUntil(5000) { c.state.value.presets.single().definition.steps.first().durationMs == 1_500_000L }
         assertEquals(id, c.state.value.presets.single().id)
         rule.onNodeWithText("Done").performClick()
-        execute(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 30_000, repetitions = 1)))
+        execute(Command.Edit(c.state.value.tracks[0].definition.copy(steps = listOf(Step("New step", 30_000)), repetitions = 1)))
         browse()
         rule.onNodeWithContentDescription("Load preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Confirm Load preset").performClick()
-        rule.waitUntil(5000) { c.state.value.tracks[0].definition.durationMs == 1_500_000L }
+        rule.waitUntil(5000) { c.state.value.tracks[0].definition.steps.first().durationMs == 1_500_000L }
         assertNull(c.state.value.tracks[0].session)
         assertEquals(3, c.state.value.tracks[0].definition.repetitions)
         rule.onNodeWithContentDescription("Timer round count").performScrollTo().assert(hasText("3"))
@@ -86,22 +92,30 @@ class HaloPresetTest {
         execute(Command.Edit(Definition(0, name = "Coffee", sequence = true, repetitions = 0,
             steps = listOf(Step("Bloom", 30_000), Step("Pour", 90_000)), linePalette = LinePalette.AURORA,
             haptic = HapticStyle.MORSE, morse = "C", soundEnabled = true)))
-        rule.onNodeWithContentDescription("Save current timer as preset").performScrollTo().performClick()
+        rule.onNodeWithContentDescription("Save sequence as preset").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Preset name input").performTextReplacement("Morning coffee")
         rule.onNodeWithText("Save").performClick()
         rule.waitUntil(5000) { c.state.value.presets.size == 1 }
-        rule.onNodeWithContentDescription("Save current timer as preset").performClick()
+        rule.onNodeWithContentDescription("Save sequence as preset").performClick()
         rule.onNodeWithContentDescription("Preset name input").performTextReplacement(" morning COFFEE ")
         rule.onNodeWithText("Save").assertIsNotEnabled()
         rule.onNodeWithText("Cancel").performClick()
-        execute(Command.Edit(Definition(0)))
-        browse()
-        rule.onNodeWithContentDescription("Load preset Morning coffee").performClick()
+        execute(Command.Edit(Definition(0, sequence = true, name = "Current timer", soundEnabled = true)))
+        rule.onNodeWithContentDescription("Use sequence preset Morning coffee").performScrollTo().performClick()
         rule.onNodeWithContentDescription("Confirm Load preset").performClick()
-        rule.waitUntil(5000) { c.state.value.tracks[0].definition.sequence }
+        rule.waitUntil(5000) { c.state.value.tracks[0].definition.steps.size == 2 }
+        assertEquals("Current timer", c.state.value.tracks[0].definition.name)
         assertEquals(2, c.state.value.tracks[0].definition.steps.size)
-        assertEquals(LinePalette.AURORA, c.state.value.tracks[0].definition.linePalette)
-        assertEquals("C", c.state.value.tracks[0].definition.morse)
+        assertEquals(LinePalette.SOLID, c.state.value.tracks[0].definition.linePalette)
+        assertEquals("TIME", c.state.value.tracks[0].definition.morse)
+        rule.onNodeWithContentDescription("Sequence preset controls").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithContentDescription("Use sequence preset Morning coffee")
+            .assert(hasAnyAncestor(hasContentDescription("Sequence preset controls")))
+        screenshot("22-sequence-presets-inline")
+        rule.onNodeWithText("Single", substring = false).performScrollTo().performClick()
+        rule.waitUntil(5000) { !c.state.value.tracks[0].definition.sequence }
+        rule.onNodeWithContentDescription("Save sequence as preset").assertDoesNotExist()
+        rule.onNodeWithText("Sequence presets").assertDoesNotExist()
         rule.onNodeWithText("Show completion preview").performScrollTo().performClick()
         listOf("Light", "Dark").forEach { theme ->
             rule.onNodeWithText(theme).performScrollTo().performClick()

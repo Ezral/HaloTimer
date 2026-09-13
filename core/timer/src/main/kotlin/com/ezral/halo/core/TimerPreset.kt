@@ -2,19 +2,22 @@ package com.ezral.halo.core
 
 import kotlinx.serialization.Serializable
 
-/** Reusable configuration only: never a running session, deadline or device preference. */
+/** Keeps the 1.3.0 storage format; sequence presets apply only sequence settings. */
 @Serializable
 data class TimerPreset(val id: String, val name: String, val definition: Definition) {
-    fun forSlot(slot: Definition): Definition = definition.copy(
-        id = slot.id, active = slot.active, hidden = slot.hidden,
-        dock = slot.dock, x = slot.x, y = slot.y,
+    fun forSlot(slot: Definition): Definition = slot.copy(
+        steps = definition.steps.map { it.copy() }, repetitions = definition.repetitions,
+        hoursEnabled = slot.hoursEnabled || definition.hoursEnabled || definition.steps.any { it.durationMs > MAX_MS },
     )
 }
 
-fun Definition.presetConfiguration(): Definition = copy(
-    id = 0, active = true, hidden = false, dock = DockSide.NONE, x = .82f, y = .20f,
+fun Definition.presetConfiguration(): Definition = Definition(
+    id = 0, sequence = true, hoursEnabled = hoursEnabled, repetitions = repetitions,
     steps = steps.map { it.copy() },
 )
+
+/** Legacy single-timer entries are retained on disk but are not sequence choices. */
+fun Snapshot.sequencePresets(): List<TimerPreset> = presets.filter { it.definition.sequence }
 
 fun presetNameError(name: String, presets: List<TimerPreset>, replacingId: String? = null): String? {
     val trimmed = name.trim()

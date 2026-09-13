@@ -20,12 +20,13 @@ import kotlinx.coroutines.launch
 /** Actions operate on the coordinator's latest definition after committing focused editors. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
+fun SequencePresets(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     val snapshot by c.state.collectAsStateWithLifecycle()
     val ready by c.ready.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val track = snapshot.tracks[selected]
+    val presets = snapshot.sequencePresets()
     var browsing by remember(selected) { mutableStateOf(false) }
     var saving by remember(selected) { mutableStateOf(false) }
     var action by remember(selected) { mutableStateOf<String?>(null) }
@@ -45,32 +46,42 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
             } finally { busy = false }
         }
     }
-    HaloCard {
+    Column(Modifier.semantics { contentDescription = "Sequence preset controls" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Sequence presets", fontWeight = FontWeight.SemiBold)
+        if (presets.isEmpty()) Text("Save your sequence to reuse its steps.", fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            presets.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.forEach { preset ->
+                AssistChip(onClick = { focus.clearFocus(); target = preset; action = "Load"; failure = null },
+                    label = { Text(preset.name) }, enabled = ready && track.session == null && !busy,
+                    modifier = Modifier.semantics { contentDescription = "Use sequence preset ${preset.name}" })
+            }
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
             TextButton(onClick = { focus.clearFocus(); failure = null; browsing = true }, enabled = ready) {
-                Text("Browse presets (${snapshot.presets.size})")
+                Text("Manage presets (${presets.size})")
             }
             TextButton(onClick = {
                 focus.clearFocus(); name = track.definition.name; failure = null; saving = true
-            }, enabled = ready, modifier = Modifier.semantics { contentDescription = "Save current timer as preset" }) { Text("Save current") }
+            }, enabled = ready, modifier = Modifier.semantics { contentDescription = "Save sequence as preset" }) { Text("Save sequence") }
         }
         notice?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary) }
     }
     if (browsing) AlertDialog(
         onDismissRequest = { if (!busy) browsing = false },
-        title = { Text("Saved presets") },
+        title = { Text("Saved sequences") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Load into ${track.definition.name}. App-wide display settings stay as you set them.", fontSize = 12.sp)
+                Text("Choose saved steps for this sequence.", fontSize = 12.sp)
                 if (track.session != null) Text("Reset this timer to load a preset. You can still save or manage presets.",
                     color = MaterialTheme.colorScheme.primary)
-                if (snapshot.presets.isEmpty()) Text("No saved presets yet. Set up a timer, then choose Save current.")
-                snapshot.presets.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.forEach { preset ->
+                if (presets.isEmpty()) Text("No saved sequences yet. Add your steps, then choose Save sequence.")
+                presets.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.forEach { preset ->
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(preset.name, fontWeight = FontWeight.SemiBold)
                         val d = preset.definition
-                        Text((if (d.sequence) "Sequence · ${d.steps.size} steps" else "Single timer") +
+                        Text("${d.steps.size} steps" +
                             " · ${formatTime(d.runSteps().sumOf { it.durationMs }, d.hoursEnabled)}" +
                             " · ${if (d.repetitions == 0) "∞" else "${d.repetitions}×"}", fontSize = 12.sp)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -94,7 +105,7 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     val preset = target
     if (saving || (preset != null && action != null)) {
         val editingName = saving || action == "Rename"
-        val nameError = if (editingName) presetNameError(name, snapshot.presets, if (saving) null else preset?.id) else null
+        val nameError = if (editingName) presetNameError(name, presets, if (saving) null else preset?.id) else null
         AlertDialog(
             onDismissRequest = { if (!busy) { saving = false; action = null } },
             title = { Text(if (saving) "Save preset" else "$action preset?") },
@@ -106,10 +117,10 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
                             isError = nameError != null && name.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Preset name input" })
                         if (nameError != null && name.isNotEmpty()) Text(nameError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                        if (saving) Text("Saves the configured durations, steps, repetitions, colors, floating pill and alerts. Running progress is not saved.", fontSize = 12.sp)
+                        if (saving) Text("Saves step names, durations and sequence repetitions.", fontSize = 12.sp)
                     } else Text(when (action) {
-                        "Load" -> "Replace ${track.definition.name} with “${preset?.name}”? It will be ready to start. Other timers stay as they are."
-                        "Update" -> "Replace the settings in “${preset?.name}” with the current ${track.definition.name} configuration?"
+                        "Load" -> "Replace the current sequence steps and repetitions with “${preset?.name}”?"
+                        "Update" -> "Update “${preset?.name}” with the current sequence steps and repetitions?"
                         else -> "Delete “${preset?.name}”? Timers already loaded from it will stay as they are."
                     })
                     failure?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
@@ -126,7 +137,7 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
                     }
                     perform(command) {
                         notice = when (command) {
-                            is Command.LoadPreset -> "Preset loaded · ready to start"
+                            is Command.LoadPreset -> "Sequence loaded · ready to start"
                             is Command.DeletePreset -> "Preset deleted"
                             is Command.RenamePreset -> "Preset renamed"
                             else -> "Preset saved"
