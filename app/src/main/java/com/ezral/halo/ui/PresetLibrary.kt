@@ -1,6 +1,7 @@
 package com.ezral.halo.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -9,11 +10,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +38,8 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     val focus = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val track = snapshot.tracks[selected]
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var confirmingDuplicate by remember(selected) { mutableStateOf(false) }
     var browsing by remember(selected) { mutableStateOf(false) }
     var saving by remember(selected) { mutableStateOf(false) }
     var action by remember(selected) { mutableStateOf<String?>(null) }
@@ -41,6 +48,13 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var notice by remember(selected) { mutableStateOf<String?>(null) }
+
+    fun dismissEditor() {
+        if (busy) return
+        if (confirmingDuplicate) {
+            confirmingDuplicate = false; saving = true; action = null; failure = null
+        } else { saving = false; action = null }
+    }
 
     fun perform(command: Command, done: () -> Unit) {
         busy = true; failure = null
@@ -56,47 +70,57 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     HaloCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Presets", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text("Your timers, ready to reuse", fontSize = 12.sp, color = colors.onSurfaceVariant)
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button) { focus.clearFocus(); expanded = !expanded }
+                .semantics {
+                    contentDescription = if (expanded) "Collapse presets" else "Expand presets"
+                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                }.heightIn(min = 48.dp).padding(vertical = 4.dp)) {
+                Text(if (expanded) "▾ Presets" else "▸ Presets", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (presets.size == 1) "1 saved preset" else "${presets.size} saved presets",
+                    fontSize = 12.sp, color = colors.onSurfaceVariant)
             }
             FilledTonalButton(onClick = {
-                focus.clearFocus(); name = track.definition.name; failure = null; saving = true
+                focus.clearFocus(); name = track.definition.name; failure = null; confirmingDuplicate = false; action = null; saving = true
             }, enabled = ready && !busy, contentPadding = PaddingValues(horizontal = 14.dp),
                 modifier = Modifier.semantics { contentDescription = "Save current timer as preset" }) { Text("+ Save") }
         }
-        if (presets.isEmpty()) {
-            Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f)) {
-                Text("Save a timer you love. Its timing, look and alerts will be here for next time.",
-                    Modifier.fillMaxWidth().padding(14.dp), fontSize = 13.sp, color = colors.onSurfaceVariant)
-            }
-        } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(presets, key = { it.id }) { preset ->
-                    Surface(onClick = { focus.clearFocus(); target = preset; action = "Load"; failure = null },
-                        enabled = ready && track.session == null && !busy,
-                        shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f),
-                        modifier = Modifier.width(174.dp).semantics { contentDescription = "Use preset ${preset.name}" }) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Box(Modifier.size(7.dp).background(Color(preset.definition.color), RoundedCornerShape(4.dp)))
-                                Text(if (preset.definition.sequence) "${preset.definition.steps.size} steps" else "Single timer",
-                                    fontSize = 11.sp, color = colors.onSurfaceVariant)
+        notice?.let { Text(it, fontSize = 12.sp, color = colors.primary) }
+        if (expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (presets.isEmpty()) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f)) {
+                        Text("Save a timer you love. Its timing, look and alerts will be here for next time.",
+                            Modifier.fillMaxWidth().padding(14.dp), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                    }
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(presets, key = { it.id }) { preset ->
+                            Surface(onClick = { focus.clearFocus(); target = preset; action = "Load"; failure = null },
+                                enabled = ready && track.session == null && !busy,
+                                shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f),
+                                modifier = Modifier.width(174.dp).semantics { contentDescription = "Use preset ${preset.name}" }) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Box(Modifier.size(7.dp).background(Color(preset.definition.color), RoundedCornerShape(4.dp)))
+                                        Text(if (preset.definition.sequence) "${preset.definition.steps.size} steps" else "Single timer",
+                                            fontSize = 11.sp, color = colors.onSurfaceVariant)
+                                    }
+                                    Text(preset.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                                        minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(presetTiming(preset), fontSize = 12.sp, color = colors.onSurfaceVariant)
+                                }
                             }
-                            Text(preset.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-                                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(presetTiming(preset), fontSize = 12.sp, color = colors.onSurfaceVariant)
                         }
                     }
+                    if (track.session != null) Text("Reset this timer to load a preset.", fontSize = 12.sp, color = colors.onSurfaceVariant)
                 }
-            }
-            if (track.session != null) Text("Reset this timer to load a preset.", fontSize = 12.sp, color = colors.onSurfaceVariant)
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(notice ?: "Saved on this device", Modifier.weight(1f), fontSize = 11.sp,
-                color = if (notice != null) colors.primary else colors.onSurfaceVariant)
-            TextButton(onClick = { focus.clearFocus(); failure = null; browsing = true }, enabled = ready && !busy) {
-                Text("Browse presets (${presets.size})", fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Saved on this device", Modifier.weight(1f), fontSize = 11.sp, color = colors.onSurfaceVariant)
+                    TextButton(onClick = { focus.clearFocus(); failure = null; browsing = true }, enabled = ready && !busy) {
+                        Text("Browse presets (${presets.size})", fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
@@ -152,10 +176,12 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
     val preset = target
     if (saving || (preset != null && action != null)) {
         val editingName = saving || action == "Rename"
-        val nameError = if (editingName) presetNameError(name, snapshot.presets, if (saving) null else preset?.id) else null
+        val matchingPreset = if (saving) snapshot.presets.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) } else null
+        val nameError = if (editingName) presetNameError(name, snapshot.presets,
+            if (saving) matchingPreset?.id else preset?.id) else null
         AlertDialog(
-            onDismissRequest = { if (!busy) { saving = false; action = null } },
-            title = { Text(if (saving) "Save preset" else "$action preset?") },
+            onDismissRequest = { dismissEditor() },
+            title = { Text(if (saving) "Save preset" else if (confirmingDuplicate) "Update existing preset?" else "$action preset?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (editingName) {
@@ -167,7 +193,8 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
                         if (saving) Text("Saves the configured durations, steps, repetitions, colors, floating pill and alerts. Running progress is not saved.", fontSize = 12.sp)
                     } else Text(when (action) {
                         "Load" -> "Replace ${track.definition.name} with “${preset?.name}”? It will be ready to start. Other timers stay as they are."
-                        "Update" -> "Replace the settings in “${preset?.name}” with the current ${track.definition.name} configuration?"
+                        "Update" -> if (confirmingDuplicate) "A preset named “${preset?.name}” already exists. Update it with the current timer’s timing, look and alerts?"
+                            else "Replace the settings in “${preset?.name}” with the current ${track.definition.name} configuration?"
                         else -> "Delete “${preset?.name}”? Timers already loaded from it will stay as they are."
                     })
                     failure?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
@@ -176,6 +203,11 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
             confirmButton = {
                 TextButton(modifier = Modifier.semantics { contentDescription = "Confirm ${if (saving) "Save" else action} preset" },
                     enabled = ready && !busy && nameError == null && (action != "Load" || track.session == null), onClick = {
+                    if (saving && matchingPreset != null) {
+                        focus.clearFocus(); target = matchingPreset; saving = false
+                        action = "Update"; confirmingDuplicate = true; failure = null
+                        return@TextButton
+                    }
                     val command = if (saving) Command.SavePreset(selected, name) else when (action) {
                         "Rename" -> Command.RenamePreset(preset!!.id, name)
                         "Load" -> Command.LoadPreset(preset!!.id, selected)
@@ -190,11 +222,11 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
                             else -> "Preset saved"
                         }
                         if (command is Command.LoadPreset) { browsing = false; onLoaded() }
-                        saving = false; action = null
+                        saving = false; action = null; confirmingDuplicate = false
                     }
                 }) { Text(if (busy) "Saving…" else if (saving || action == "Rename") "Save" else action ?: "Save") }
             },
-            dismissButton = { TextButton(onClick = { saving = false; action = null }, enabled = !busy) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { dismissEditor() }, enabled = !busy) { Text("Cancel") } },
         )
     }
 }
