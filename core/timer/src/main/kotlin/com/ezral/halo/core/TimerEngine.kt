@@ -194,8 +194,9 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
                 val definition = state.tracks.firstOrNull { it.definition.id == command.track }?.definition
                 error = when {
                     definition == null -> "Timer not found"
-                    command.replacingId != null && state.presets.none { it.id == command.replacingId } -> "Preset no longer exists"
-                    else -> presetNameError(command.name, state.presets, command.replacingId) ?: definition.error()
+                    !definition.sequence -> "Switch to Sequence to save a preset"
+                    command.replacingId != null && state.sequencePresets().none { it.id == command.replacingId } -> "Sequence preset no longer exists"
+                    else -> presetNameError(command.name, state.sequencePresets(), command.replacingId) ?: definition.error()
                 }
                 if (error == null && definition != null) {
                     val preset = TimerPreset(command.replacingId ?: newId(), command.name.trim(), definition.presetConfiguration())
@@ -205,7 +206,7 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             }
             is Command.RenamePreset -> {
                 error = if (state.presets.none { it.id == command.id }) "Preset no longer exists"
-                    else presetNameError(command.name, state.presets, command.id)
+                    else presetNameError(command.name, state.sequencePresets(), command.id)
                 if (error == null) state = state.copy(presets = state.presets.map {
                     if (it.id == command.id) it.copy(name = command.name.trim()) else it
                 })
@@ -214,10 +215,12 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             is Command.LoadPreset -> {
                 val preset = state.presets.firstOrNull { it.id == command.id }
                 if (preset == null) error = "Preset no longer exists"
+                else if (!preset.definition.sequence) error = "Choose a sequence preset"
                 else change(command.track) { t ->
                     val definition = preset.forSlot(t.definition)
                     when {
                         t.session != null -> { error = "Reset this timer before loading a preset"; t }
+                        !t.definition.sequence -> { error = "Switch to Sequence to load a preset"; t }
                         definition.error() != null -> { error = definition.error(); t }
                         else -> t.copy(definition = definition)
                     }
