@@ -52,9 +52,9 @@ class TimerCoordinator(private val context: Context) {
         }
     }
     fun submit(command: Command) { scope.launch { execute(command) } }
-    suspend fun execute(command: Command) = mutex.withLock {
+    suspend fun execute(command: Command): Boolean = mutex.withLock {
         ensureLoaded()
-        if (!loaded || storageFailed) return@withLock
+        if (!loaded || storageFailed) return@withLock false
         try {
             val now = SystemClock.elapsedRealtime()
             val old = mutableState.value
@@ -90,6 +90,7 @@ class TimerCoordinator(private val context: Context) {
                     haptics.enqueue(event)
                 }
             }
+            result.error == null
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             storageFailed = true
@@ -99,6 +100,7 @@ class TimerCoordinator(private val context: Context) {
             mutableState.value = mutableState.value.copy(tracks = mutableState.value.tracks.map { t ->
                 t.copy(session = t.session?.copy(status = Status.INTERRUPTED, visualUntilMs = 0))
             })
+            false
         }
     }
     suspend fun initialize() { execute(Command.Tick) }

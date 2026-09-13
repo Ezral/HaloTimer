@@ -108,9 +108,9 @@ class HaloSmokeTest {
             }
             rule.runOnUiThread { view.reducedMotion = true }
             // The decorative window must not consume a tap on the app beneath it.
-            rule.onNodeWithContentDescription("Decrease seconds").performClick()
+            rule.onNodeWithContentDescription("Decrease seconds").performScrollTo().performClick()
             rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
-            rule.onNodeWithContentDescription("Increase seconds").performClick()
+            rule.onNodeWithContentDescription("Increase seconds").performScrollTo().performClick()
         } finally { rule.runOnUiThread { manager.removeViewImmediate(view) } }
     }
 
@@ -292,7 +292,7 @@ class HaloSmokeTest {
         rule.onNodeWithText(Morse.display("SOS")).assertExists()
         screenshot("09-morse-saved")
         // Bring the nested horizontal repeat row into the vertical viewport first.
-        rule.onNodeWithText("Test vibration once").performScrollTo()
+        rule.onNodeWithText("Sound & vibration").performScrollTo()
         rule.onNodeWithText("Custom", substring = false).performScrollTo().performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.hapticRepeat == HapticRepeat.CUSTOM }
         rule.onNodeWithText("Duration", substring = false).performScrollTo().performClick()
@@ -360,9 +360,9 @@ class HaloSmokeTest {
         shell("appops set com.ezral.halo.debug SYSTEM_ALERT_WINDOW allow")
         rule.waitUntil(5_000) { Settings.canDrawOverlays(activity) }
         // A second-field adjustment must operate on the entire duration, including borrow.
-        rule.onNodeWithContentDescription("Decrease seconds").performClick()
+        rule.onNodeWithContentDescription("Decrease seconds").performScrollTo().performClick()
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 299_000L }
-        rule.onNodeWithContentDescription("Increase seconds").performClick()
+        rule.onNodeWithContentDescription("Increase seconds").performScrollTo().performClick()
         rule.waitUntil(5_000) { (activity.application as HaloApplication).coordinator.state.value.tracks[0].definition.durationMs == 300_000L }
         screenshot("01-system-editor")
         rule.onNodeWithText("Light").performScrollTo().performClick()

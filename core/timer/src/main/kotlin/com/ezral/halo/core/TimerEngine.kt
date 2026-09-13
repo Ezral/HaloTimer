@@ -99,6 +99,7 @@ const val MAX_HOURS_MS = 359_999_000L
     val boot: Int = -1,
     val tracks: List<Track> = (0..2).map { Track(Definition(it)) },
     val outbox: List<AlertEvent> = emptyList(),
+    val presets: List<TimerPreset> = emptyList(),
 )
 data class AdjustmentTarget(val track: Int, val session: String?, val index: Int)
 sealed interface Command {
@@ -108,6 +109,10 @@ sealed interface Command {
     data class Rewind(val id: Int) : Command
     data class Activate(val id: Int, val active: Boolean) : Command
     data class Edit(val definition: Definition) : Command
+    data class SavePreset(val track: Int, val name: String, val replacingId: String? = null) : Command
+    data class RenamePreset(val id: String, val name: String) : Command
+    data class DeletePreset(val id: String) : Command
+    data class LoadPreset(val id: String, val track: Int) : Command
     data class BarAppearance(val id: Int, val showName: Boolean? = null, val rotateText: Boolean? = null) : Command
     data class Adjust(val target: AdjustmentTarget, val deltaMs: Long) : Command
     data class Hide(val id: Int, val hidden: Boolean) : Command
@@ -185,6 +190,39 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             t.copy(session = it.copy(status = Status.PAUSED, remainingMs = it.remaining(now), revision = it.revision + 1, visualUntilMs = 0))
         } ?: t
         when (command) {
+            is Command.SavePreset -> {
+                val definition = state.tracks.firstOrNull { it.definition.id == command.track }?.definition
+                error = when {
+                    definition == null -> "Timer not found"
+                    command.replacingId != null && state.presets.none { it.id == command.replacingId } -> "Preset no longer exists"
+                    else -> presetNameError(command.name, state.presets, command.replacingId) ?: definition.error()
+                }
+                if (error == null && definition != null) {
+                    val preset = TimerPreset(command.replacingId ?: newId(), command.name.trim(), definition.presetConfiguration())
+                    state = state.copy(presets = if (command.replacingId == null) state.presets + preset
+                        else state.presets.map { if (it.id == preset.id) preset else it })
+                }
+            }
+            is Command.RenamePreset -> {
+                error = if (state.presets.none { it.id == command.id }) "Preset no longer exists"
+                    else presetNameError(command.name, state.presets, command.id)
+                if (error == null) state = state.copy(presets = state.presets.map {
+                    if (it.id == command.id) it.copy(name = command.name.trim()) else it
+                })
+            }
+            is Command.DeletePreset -> state = state.copy(presets = state.presets.filterNot { it.id == command.id })
+            is Command.LoadPreset -> {
+                val preset = state.presets.firstOrNull { it.id == command.id }
+                if (preset == null) error = "Preset no longer exists"
+                else change(command.track) { t ->
+                    val definition = preset.forSlot(t.definition)
+                    when {
+                        t.session != null -> { error = "Reset this timer before loading a preset"; t }
+                        definition.error() != null -> { error = definition.error(); t }
+                        else -> t.copy(definition = definition)
+                    }
+                }
+            }
             is Command.Start -> command.ids.forEach { id -> change(id) { t ->
                 val d = t.definition
                 if (!d.active || t.session?.status == Status.RUNNING) t

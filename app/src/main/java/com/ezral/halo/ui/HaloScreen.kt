@@ -106,12 +106,13 @@ fun HaloScreen(
             val editable = s == null
             val accent = Color(d.color)
             val scroll = rememberScrollState()
-            var pendingPreset by remember { mutableStateOf<List<Step>?>(null) }
+            var pendingPreset by remember(selected) { mutableStateOf<List<Step>?>(null) }
             var editingName by remember(selected) { mutableStateOf(false) }
             var nameDraft by remember(selected, d.name) { mutableStateOf(d.name) }
             var editingMorse by remember { mutableStateOf(false) }
             var morseDraft by remember(d.morse) { mutableStateOf(d.morse) }
             var customColor by remember { mutableStateOf(false) }
+            var presetRevision by remember(selected) { mutableIntStateOf(0) }
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Column(Modifier.fillMaxWidth().zIndex(1f).shadow(12.dp, clip = false,
                     ambientColor = Color.Black.copy(alpha = .10f), spotColor = Color.Black.copy(alpha = .18f))
@@ -137,7 +138,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 22.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 22.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.tracks.forEach { t ->
                         val isSelected = selected == t.definition.id
@@ -162,6 +163,7 @@ fun HaloScreen(
                         TextButton(onClick = { c.error.value = null }) { Text("Close") }
                     }
                 }
+                PresetLibrary(c, selected, onLoaded = { selectedStep = 0; presetRevision++ })
                 HaloCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(d.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
@@ -174,7 +176,7 @@ fun HaloScreen(
                     }
                     SettingToggle("Hours", d.hoursEnabled) { focus.clearFocus(); c.submit(Command.Edit(d.copy(hoursEnabled = it))) }
                     Text("Timer repetition", fontWeight = FontWeight.SemiBold)
-                    var customRounds by remember(selected) { mutableStateOf(d.repetitions > 1) }
+                    var customRounds by remember(selected, presetRevision) { mutableStateOf(d.repetitions > 1) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(d.repetitions == 1 && !customRounds, { customRounds = false; c.submit(Command.Edit(d.copy(repetitions = 1))) }, { Text("1×") }, enabled = editable && ready)
                         FilterChip(d.repetitions == 0, { customRounds = false; c.submit(Command.Edit(d.copy(repetitions = 0))) }, { Text("∞") }, enabled = editable && ready,
@@ -229,8 +231,9 @@ fun HaloScreen(
                         Text(if (s.status == Status.COMPLETED) "Dismiss" else "Reset")
                     }
                 }
+                MenuSection("Look & previews", "Display, edge light and floating controls")
                 HaloCard {
-                    Text("Timer display", fontWeight = FontWeight.SemiBold)
+                    Text("Display & previews", fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(!prefs.fullScreenMode, { c.scope.launch { c.preferences.fullScreenMode(false) } }, { Text("Overlay") })
                         FilterChip(prefs.fullScreenMode, { c.scope.launch { c.preferences.fullScreenMode(true) } }, { Text("Full screen") })
@@ -247,7 +250,32 @@ fun HaloScreen(
                             }
                         }
                         SettingToggle("Keep full-screen display awake", prefs.keepScreenOn) { c.scope.launch { c.preferences.keepScreenOn(it) } }
+                    }
+                    HorizontalDivider()
+                    Text("Try the current timer", fontWeight = FontWeight.Medium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { if (overlay) onPreview(selected) else onOverlayPermission() }) { Text("Preview edge alert") }
                         TextButton(onClick = { focus.clearFocus(); onFullScreen() }, enabled = ready) { Text("Open full-screen timer") }
+                        if (d.vibrates()) TextButton(onClick = { c.haptics.preview(d.copy(soundEnabled = false)) }) { Text("Test vibration once") }
+                        if (d.soundEnabled) TextButton(onClick = { c.haptics.preview(d.copy(vibrationEnabled = false)) }) { Text("Test sound once") }
+                    }
+                    if (prefs.completionEnabled) {
+                        var showCompletionPreview by rememberSaveable { mutableStateOf(false) }
+                        TextButton(onClick = { showCompletionPreview = !showCompletionPreview }) {
+                            Text(if (showCompletionPreview) "Hide completion preview" else "Show completion preview")
+                        }
+                        if (showCompletionPreview) {
+                            val previewStep = if (d.sequence) (s?.steps?.getOrNull(s.index) ?: d.steps.getOrNull(selectedStep))?.name else null
+                            Box(Modifier.fillMaxWidth().animateContentSize().clip(RoundedCornerShape(20.dp)).background(accent).padding(18.dp)
+                                .semantics { contentDescription = "Completion text preview" }) {
+                                Text("Timer is completed for\n${d.name}" + (previewStep?.let { " · $it" } ?: ""),
+                                    fontSize = prefs.completionTextSp.sp, lineHeight = (prefs.completionTextSp * 1.4f).sp,
+                                    color = Color(com.ezral.halo.overlay.HaloGlass.foreground(d.color.toInt())),
+                                    fontWeight = if(prefs.completionBold) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = if(prefs.completionAlignment == "Left") TextAlign.Start else TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth())
+                            }
+                        }
                     }
                 }
                 HaloCard {
@@ -282,9 +310,35 @@ fun HaloScreen(
                     Text("Glow", color = scheme.onSurfaceVariant)
                     var glow by remember(d.glow) { mutableFloatStateOf(d.glow) }
                     Slider(glow, { glow = it }, onValueChangeFinished = { c.submit(Command.Edit(d.copy(glow = glow))) }, modifier = Modifier.semantics { contentDescription = "Edge glow strength" })
-                    SettingToggle("Floating control", !d.hidden) { c.submit(Command.Hide(selected, !it)) }
-                    TextButton(onClick = { if (overlay) onPreview(selected) else onOverlayPermission() }) { Text("Preview edge alert") }
                 }
+                HaloCard {
+                    Text("Floating pill", fontWeight = FontWeight.SemiBold)
+                    SettingToggle("Floating control", !d.hidden) { c.submit(Command.Hide(selected, !it)) }
+                    SettingToggle("Show timer name", d.showBarName) { c.submit(Command.BarAppearance(d.id, showName = it)) }
+                    SettingToggle("Text rotates around pill", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
+                    SettingToggle("Text motion on timer dock", prefs.dockTextMotion) { c.scope.launch { c.preferences.dockTextMotion(it) } }
+                    TextButton(onClick = { c.submit(Command.ShowAll); if (state.tracks.any { it.session?.status == Status.RUNNING }) onLaunch(-2) }) { Text("Show all floating controls") }
+                }
+                HaloCard {
+                    Text("Completion screen", fontWeight = FontWeight.SemiBold)
+                    SettingToggle("Expand timer color", prefs.completionEnabled) { c.scope.launch { c.preferences.completionEnabled(it) } }
+                    if(prefs.completionEnabled) {
+                        Text("Display for ${prefs.completionSeconds} seconds")
+                        Slider(prefs.completionSeconds.toFloat(), { c.scope.launch { c.preferences.completionSeconds(it.toInt()) } }, valueRange = 1f..30f, steps = 28,
+                            modifier = Modifier.semantics { contentDescription = "Completion screen duration" })
+                        Text("Text size · ${prefs.completionTextSp} sp")
+                        Slider(prefs.completionTextSp.toFloat(), { c.scope.launch { c.preferences.completionTextSp(it.toInt()) } }, valueRange = 18f..48f, steps = 29,
+                            modifier = Modifier.semantics { contentDescription = "Completion text size" })
+                        SettingToggle("Bold completion text", prefs.completionBold) { c.scope.launch { c.preferences.completionBold(it) } }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Left", "Center").forEach { alignment ->
+                                FilterChip(prefs.completionAlignment == alignment, { c.scope.launch { c.preferences.completionAlignment(alignment) } }, { Text(alignment) })
+                            }
+                        }
+                        Text("Tap the completion screen to close it early.", fontSize = 12.sp, color = scheme.onSurfaceVariant)
+                    }
+                }
+                MenuSection("Alerts", "Sound and vibration for this timer")
                 HaloCard {
                     Text("Sound & vibration", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Vibration", d.vibrates()) { c.submit(Command.Edit(d.copy(vibrationEnabled = it, haptic = d.alertPattern()))) }
@@ -339,50 +393,13 @@ fun HaloScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                         }
                     }
-                    if (d.vibrates()) TextButton(onClick = { c.haptics.preview(d.copy(soundEnabled = false)) }) { Text("Test vibration once") }
-                    if (d.soundEnabled) TextButton(onClick = { c.haptics.preview(d.copy(vibrationEnabled = false)) }) { Text("Test sound once") }
                 }
-                HaloCard {
-                    Text("Floating pill", fontWeight = FontWeight.SemiBold)
-                    SettingToggle("Show timer name", d.showBarName) { c.submit(Command.BarAppearance(d.id, showName = it)) }
-                    SettingToggle("Text rotates around pill", d.rotateBarText) { c.submit(Command.BarAppearance(d.id, rotateText = it)) }
-                }
-                HaloCard {
-                    Text("Completion screen", fontWeight = FontWeight.SemiBold)
-                    SettingToggle("Expand timer color", prefs.completionEnabled) { c.scope.launch { c.preferences.completionEnabled(it) } }
-                    if(prefs.completionEnabled) {
-                        Text("Display for ${prefs.completionSeconds} seconds")
-                        Slider(prefs.completionSeconds.toFloat(), { c.scope.launch { c.preferences.completionSeconds(it.toInt()) } }, valueRange = 1f..30f, steps = 28,
-                            modifier = Modifier.semantics { contentDescription = "Completion screen duration" })
-                        Text("Text size · ${prefs.completionTextSp} sp")
-                        Slider(prefs.completionTextSp.toFloat(), { c.scope.launch { c.preferences.completionTextSp(it.toInt()) } }, valueRange = 18f..48f, steps = 29,
-                            modifier = Modifier.semantics { contentDescription = "Completion text size" })
-                        SettingToggle("Bold completion text", prefs.completionBold) { c.scope.launch { c.preferences.completionBold(it) } }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Left", "Center").forEach { alignment ->
-                                FilterChip(prefs.completionAlignment == alignment, { c.scope.launch { c.preferences.completionAlignment(alignment) } }, { Text(alignment) })
-                            }
-                        }
-                        val previewStep = if (d.sequence) (s?.steps?.getOrNull(s.index) ?: d.steps.getOrNull(selectedStep))?.name else null
-                        Box(Modifier.fillMaxWidth().animateContentSize().clip(RoundedCornerShape(20.dp)).background(accent).padding(18.dp)
-                            .semantics { contentDescription = "Completion text preview" }) {
-                            Text("Timer is completed for\n${d.name}" + (previewStep?.let { " · $it" } ?: ""),
-                                fontSize = prefs.completionTextSp.sp, lineHeight = (prefs.completionTextSp * 1.4f).sp,
-                                color = Color(com.ezral.halo.overlay.HaloGlass.foreground(d.color.toInt())),
-                                fontWeight = if(prefs.completionBold) FontWeight.Bold else FontWeight.Normal,
-                                textAlign = if(prefs.completionAlignment == "Left") TextAlign.Start else TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth())
-                        }
-                        Text("Tap the completion screen to close it early.", fontSize = 12.sp, color = scheme.onSurfaceVariant)
-                    }
-                }
+                MenuSection("App settings", "Applies to all timers")
                 HaloCard {
                     Text("Controls", fontWeight = FontWeight.SemiBold)
                     SettingToggle("Volume buttons in Halo", prefs.volume) { c.scope.launch { c.preferences.volume(it) } }
                     if (prefs.volume) Text("${d.name} · 30s → 1m → 5m while held", color = scheme.onSurfaceVariant, fontSize = 13.sp)
                     SettingToggle("Dismiss all timers on menu entry", prefs.dismissAllOnMenu) { c.scope.launch { c.preferences.dismissAllOnMenu(it) } }
-                    SettingToggle("Text motion on timer dock", prefs.dockTextMotion) { c.scope.launch { c.preferences.dockTextMotion(it) } }
-                    TextButton(onClick = { c.submit(Command.ShowAll); if (state.tracks.any { it.session?.status == Status.RUNNING }) onLaunch(-2) }) { Text("Show all floating controls") }
                 }
                 if (!overlay || !exact || !notifications) HaloCard {
                     Text("Permissions", fontWeight = FontWeight.SemiBold)
@@ -399,7 +416,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  1.2.2", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.3.0", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }
@@ -428,9 +445,16 @@ private fun Modifier.selectableTab(selected: Boolean, description: String, actio
     .semantics { this.selected = selected; role = Role.Tab; contentDescription = description }
     .clickable(onClick = action)
 
-@Composable private fun HaloCard(content: @Composable ColumnScope.() -> Unit) {
+@Composable private fun MenuSection(title: String, subtitle: String) {
+    Column(Modifier.padding(top = 8.dp, start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+        Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable internal fun HaloCard(content: @Composable ColumnScope.() -> Unit) {
     Card(shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
 @Composable private fun SettingToggle(label: String, value: Boolean, changed: (Boolean) -> Unit) {
