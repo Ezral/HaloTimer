@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.*
@@ -142,17 +144,21 @@ fun HaloScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.tracks.forEach { t ->
                         val isSelected = selected == t.definition.id
-                        Column(Modifier.weight(1f).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
+                        Column(Modifier.weight(1f).testTag("timer-tab-${t.definition.id}").clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
                             .background(if (isSelected) scheme.surface else scheme.surfaceVariant.copy(alpha = 0.4f))
                             .selectableTab(isSelected, "${t.definition.name}, ${if (t.definition.active) "active" else "inactive"}, ${t.session?.status ?: Status.READY}") {
                                 focus.clearFocus(); selected = t.definition.id
                             }.padding(horizontal = 12.dp, vertical = 14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Box(Modifier.size(6.dp).background(Color(t.definition.color), RoundedCornerShape(3.dp)))
-                                Text(t.definition.name, maxLines = 2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(t.definition.name, maxLines = 1, minLines = 1, overflow = TextOverflow.Ellipsis,
+                                    fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
                             }
-                            Text(if (t.definition.active) "Active" else "Inactive", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-                            if (t.session != null) Text(formatTime(t.session!!.remaining(now), t.definition.hoursEnabled), fontFamily = CountdownMono, fontSize = 12.sp)
+                            Text(t.session?.let { formatTime(it.remaining(now), t.definition.hoursEnabled) }
+                                ?: if (t.definition.active) "Active" else "Inactive",
+                                maxLines = 1, minLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontFamily = CountdownMono, fontSize = 11.sp, lineHeight = 18.sp,
+                                color = scheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -416,7 +422,7 @@ fun HaloScreen(
                         }
                     }
                 }
-                Text("HALO  /  1.3.0", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
+                Text("HALO  /  1.3.1", Modifier.align(Alignment.CenterHorizontally), fontSize = 10.sp, letterSpacing = 2.sp, color = scheme.onSurfaceVariant)
             }
             }
             pendingPreset?.let { preset -> AlertDialog(onDismissRequest = { pendingPreset = null }, title = { Text("Replace this sequence?") }, text = { Text("Your current steps will be replaced by the editable example.") }, confirmButton = { TextButton(onClick = { selectedStep = 0; c.submit(Command.Edit(d.copy(steps = preset))); pendingPreset = null }) { Text("Replace") } }, dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("Cancel") } }) }

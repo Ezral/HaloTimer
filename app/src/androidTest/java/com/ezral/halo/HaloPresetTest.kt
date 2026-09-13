@@ -27,7 +27,7 @@ class HaloPresetTest {
         c.preferences.fullScreenMode(false); c.preferences.completionEnabled(true)
         c.preferences.theme("System"); c.preferences.dismissAllOnMenu(false)
     } } }
-    private fun execute(command: Command) = runBlocking { withContext(Dispatchers.Main) { c.execute(command) } }
+    private fun execute(command: Command) = runBlocking { withContext(Dispatchers.Main) { c.execute(command) } }.also { assertTrue("Command failed: $command", it) }
     private fun browse(count: Int = 1) {
         rule.onNodeWithText("Browse presets ($count)").performScrollTo().performClick()
         rule.onNodeWithText("Saved presets").assertIsDisplayed()
@@ -52,6 +52,7 @@ class HaloPresetTest {
         rule.activityRule.scenario.recreate()
         browse()
         screenshot("20-saved-preset-library")
+        rule.onNodeWithContentDescription("Manage preset Focus").performClick()
         rule.onNodeWithContentDescription("Rename preset Focus").performClick()
         rule.onNodeWithContentDescription("Preset name input").performTextReplacement("Deep focus")
         rule.onNodeWithText("Save").performClick()
@@ -59,6 +60,7 @@ class HaloPresetTest {
         rule.onNodeWithText("Done").performClick()
         execute(Command.Edit(c.state.value.tracks[0].definition.copy(durationMs = 1_500_000, repetitions = 3)))
         browse()
+        rule.onNodeWithContentDescription("Manage preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Update preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Confirm Update preset").performClick()
         rule.waitUntil(5000) { c.state.value.presets.single().definition.durationMs == 1_500_000L }
@@ -75,11 +77,45 @@ class HaloPresetTest {
         execute(Command.Start(setOf(0)))
         browse()
         rule.onNodeWithContentDescription("Load preset Deep focus").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("Manage preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Delete preset Deep focus").performClick()
         rule.onNodeWithContentDescription("Confirm Delete preset").performClick()
         rule.waitUntil(5000) { c.state.value.presets.isEmpty() }
         assertEquals(Status.RUNNING, c.state.value.tracks[0].session?.status)
         assertTrue(runBlocking { HaloStore(rule.activity).load()!!.presets.isEmpty() })
+    }
+
+    @Test fun timerTabsKeepTwoRowsAndPresetCardsLoadWholeTimers() {
+        fun heights(): List<Float> {
+            rule.onNodeWithTag("timer-tab-0").performScrollTo()
+            return (0..2).map { rule.onNodeWithTag("timer-tab-$it").fetchSemanticsNode().boundsInRoot.height }
+        }
+        val original = heights()
+        original.forEach { assertEquals(original.first(), it, 1f) }
+        execute(Command.Edit(Definition(0, name = "A longer timer name here", durationMs = 1_500_000)))
+        execute(Command.SavePreset(0, "Deep focus"))
+        execute(Command.Edit(Definition(1, name = "Tea", durationMs = 180_000, color = 0xFF57DDB4)))
+        execute(Command.SavePreset(1, "Afternoon tea"))
+        heights().forEach { assertEquals(original.first(), it, 1f) }
+        execute(Command.Start(setOf(0)))
+        heights().forEach { assertEquals(original.first(), it, 1f) }
+        rule.onNodeWithContentDescription("Use preset Afternoon tea").assertIsNotEnabled()
+        execute(Command.Reset(0))
+        heights().forEach { assertEquals(original.first(), it, 1f) }
+        listOf("Light", "Dark").forEach { theme ->
+            runBlocking { c.preferences.theme(theme) }
+            rule.waitUntil(5000) { c.prefs.value.theme == theme }
+            rule.onNodeWithTag("timer-tab-0").performScrollTo().assertIsDisplayed()
+            rule.onNodeWithContentDescription("Use preset Afternoon tea").assertIsDisplayed()
+            screenshot("22-preset-cards-${theme.lowercase()}")
+        }
+        rule.onNodeWithContentDescription("Use preset Afternoon tea").performClick()
+        rule.onNodeWithContentDescription("Confirm Load preset").performClick()
+        rule.waitUntil(5000) { c.state.value.tracks[0].definition.name == "Tea" }
+        assertEquals(180_000L, c.state.value.tracks[0].definition.durationMs)
+        assertEquals(0xFF57DDB4, c.state.value.tracks[0].definition.color)
+        assertNull(c.state.value.tracks[0].session)
+        heights().forEach { assertEquals(original.first(), it, 1f) }
     }
 
     @Test fun sequencePresetsAndPreviewHubRemainUsableInBothThemes() {

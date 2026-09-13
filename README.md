@@ -1,10 +1,10 @@
-# HaloTimer · v1.2.2
+# HaloTimer · v1.3.1
 
 A quiet Android timer that stays with you while you use your phone.
 
 HaloTimer turns the edge of your display into a countdown. Run up to three timers, build named sequences, and get a moving light or a vibration when time is up. Keep the controls as a compact pill, or pull them into a shallow dock at either side of the screen.
 
-[Quick start](docs/QUICK_START.md) · [v1.2.2 notes](docs/releases/V1.2.2.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
+[Quick start](docs/QUICK_START.md) · [v1.3.1 notes](docs/releases/V1.3.1.md) · [Download builds](https://github.com/Ezral/HaloTimer/actions/workflows/android.yml)
 
 ## Get started
 
@@ -17,6 +17,7 @@ Requires **Android 8.0 or newer**. Version 1.0 is the product milestone; the dow
 
 ## Timers and sequences
 
+- **Saved timer presets.** Save a complete timer, including sequences, appearance and alerts, with **+ Save**. Tap a preset card to load it into the selected reset timer. **Browse presets** opens the library; each card’s menu has Rename, Update from current timer, and Delete. Presets stay on this device.
 - **Three independent tracks.** Rename Timer A, B and C, switch between document-style tabs, and activate each track separately. Mix standalone timers and sequences in any combination.
 - **Whole-minute and whole-second controls.** Type, swipe vertically, scroll with a mouse, or use the accessible plus/minus actions. Seconds carry and borrow across minute boundaries: `00:59 ↔ 01:00`.
 - **Flexible duration.** Each timer or sequence step supports `00:01–99:59` by default. Enable **Hours** on a timer to use `00:00:01–99:59:59`, including its sequence steps; HH:MM:SS appears across the menu, pill and dock. Turning Hours off never truncates a longer duration. Quick presets set a single timer to 1, 5, 15 or 25 minutes.

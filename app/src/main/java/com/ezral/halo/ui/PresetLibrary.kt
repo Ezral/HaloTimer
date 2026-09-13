@@ -1,11 +1,18 @@
 package com.ezral.halo.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -45,16 +52,53 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
             } finally { busy = false }
         }
     }
+    val presets = snapshot.presets.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
+    val colors = MaterialTheme.colorScheme
     HaloCard {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-            TextButton(onClick = { focus.clearFocus(); failure = null; browsing = true }, enabled = ready) {
-                Text("Browse presets (${snapshot.presets.size})")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Presets", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Your timers, ready to reuse", fontSize = 12.sp, color = colors.onSurfaceVariant)
             }
-            TextButton(onClick = {
+            FilledTonalButton(onClick = {
                 focus.clearFocus(); name = track.definition.name; failure = null; saving = true
-            }, enabled = ready, modifier = Modifier.semantics { contentDescription = "Save current timer as preset" }) { Text("Save current") }
+            }, enabled = ready && !busy, contentPadding = PaddingValues(horizontal = 14.dp),
+                modifier = Modifier.semantics { contentDescription = "Save current timer as preset" }) { Text("+ Save") }
         }
-        notice?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary) }
+        if (presets.isEmpty()) {
+            Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f)) {
+                Text("Save a timer you love. Its timing, look and alerts will be here for next time.",
+                    Modifier.fillMaxWidth().padding(14.dp), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(presets, key = { it.id }) { preset ->
+                    Surface(onClick = { focus.clearFocus(); target = preset; action = "Load"; failure = null },
+                        enabled = ready && track.session == null && !busy,
+                        shape = RoundedCornerShape(16.dp), color = colors.surfaceVariant.copy(alpha = 0.45f),
+                        modifier = Modifier.width(174.dp).semantics { contentDescription = "Use preset ${preset.name}" }) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Box(Modifier.size(7.dp).background(Color(preset.definition.color), RoundedCornerShape(4.dp)))
+                                Text(if (preset.definition.sequence) "${preset.definition.steps.size} steps" else "Single timer",
+                                    fontSize = 11.sp, color = colors.onSurfaceVariant)
+                            }
+                            Text(preset.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(presetTiming(preset), fontSize = 12.sp, color = colors.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            if (track.session != null) Text("Reset this timer to load a preset.", fontSize = 12.sp, color = colors.onSurfaceVariant)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(notice ?: "Saved on this device", Modifier.weight(1f), fontSize = 11.sp,
+                color = if (notice != null) colors.primary else colors.onSurfaceVariant)
+            TextButton(onClick = { focus.clearFocus(); failure = null; browsing = true }, enabled = ready && !busy) {
+                Text("Browse presets (${presets.size})", fontSize = 12.sp)
+            }
+        }
     }
     if (browsing) AlertDialog(
         onDismissRequest = { if (!busy) browsing = false },
@@ -65,26 +109,40 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
                 Text("Load into ${track.definition.name}. App-wide display settings stay as you set them.", fontSize = 12.sp)
                 if (track.session != null) Text("Reset this timer to load a preset. You can still save or manage presets.",
                     color = MaterialTheme.colorScheme.primary)
-                if (snapshot.presets.isEmpty()) Text("No saved presets yet. Set up a timer, then choose Save current.")
-                snapshot.presets.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }.forEach { preset ->
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(preset.name, fontWeight = FontWeight.SemiBold)
-                        val d = preset.definition
-                        Text((if (d.sequence) "Sequence · ${d.steps.size} steps" else "Single timer") +
-                            " · ${formatTime(d.runSteps().sumOf { it.durationMs }, d.hoursEnabled)}" +
-                            " · ${if (d.repetitions == 0) "∞" else "${d.repetitions}×"}", fontSize = 12.sp)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { target = preset; action = "Load"; failure = null },
-                                enabled = track.session == null && !busy,
-                                modifier = Modifier.semantics { contentDescription = "Load preset ${preset.name}" }) { Text("Load") }
-                            TextButton(onClick = { target = preset; name = preset.name; action = "Rename"; failure = null }, enabled = !busy,
-                                modifier = Modifier.semantics { contentDescription = "Rename preset ${preset.name}" }) { Text("Rename") }
-                            TextButton(onClick = { target = preset; action = "Update"; failure = null }, enabled = !busy,
-                                modifier = Modifier.semantics { contentDescription = "Update preset ${preset.name}" }) { Text("Update") }
-                            TextButton(onClick = { target = preset; action = "Delete"; failure = null }, enabled = !busy,
-                                modifier = Modifier.semantics { contentDescription = "Delete preset ${preset.name}" }) { Text("Delete") }
+                if (snapshot.presets.isEmpty()) Text("No saved presets yet. Set up a timer, then tap + Save.")
+                presets.forEach { preset ->
+                    var expanded by remember(preset.id) { mutableStateOf(false) }
+                    Surface(shape = RoundedCornerShape(18.dp), color = colors.surface) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.width(4.dp).height(36.dp).background(Color(preset.definition.color), RoundedCornerShape(2.dp)))
+                                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                    Text(preset.name, fontWeight = FontWeight.SemiBold)
+                                    Text(if (preset.definition.sequence) "Sequence · ${preset.definition.steps.size} steps" else "Single timer",
+                                        fontSize = 12.sp, color = colors.onSurfaceVariant)
+                                }
+                                Box {
+                                    IconButton(onClick = { expanded = true }, enabled = !busy,
+                                        modifier = Modifier.semantics { contentDescription = "Manage preset ${preset.name}" }) {
+                                        Text("⋮", fontSize = 24.sp)
+                                    }
+                                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                        listOf("Rename", "Update", "Delete").forEach { operation ->
+                                            DropdownMenuItem(text = { Text(if (operation == "Update") "Update from current timer" else operation,
+                                                color = if (operation == "Delete") colors.error else colors.onSurface) },
+                                                onClick = { expanded = false; target = preset; name = preset.name; action = operation; failure = null },
+                                                modifier = Modifier.semantics { contentDescription = "$operation preset ${preset.name}" })
+                                        }
+                                    }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(presetTiming(preset), Modifier.weight(1f), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                                FilledTonalButton(onClick = { target = preset; action = "Load"; failure = null },
+                                    enabled = ready && track.session == null && !busy,
+                                    modifier = Modifier.semantics { contentDescription = "Load preset ${preset.name}" }) { Text("Load") }
+                            }
                         }
-                        HorizontalDivider()
                     }
                 }
             }
@@ -139,4 +197,10 @@ fun PresetLibrary(c: TimerCoordinator, selected: Int, onLoaded: () -> Unit) {
             dismissButton = { TextButton(onClick = { saving = false; action = null }, enabled = !busy) { Text("Cancel") } },
         )
     }
+}
+
+private fun presetTiming(preset: TimerPreset): String {
+    val d = preset.definition
+    return formatTime(d.runSteps().sumOf { it.durationMs }, d.hoursEnabled) +
+        " · ${if (d.repetitions == 0) "∞ rounds" else if (d.repetitions == 1) "1 round" else "${d.repetitions} rounds"}"
 }
