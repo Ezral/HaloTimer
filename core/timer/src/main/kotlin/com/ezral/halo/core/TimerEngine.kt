@@ -51,9 +51,10 @@ const val MAX_HOURS_MS = 359_999_000L
     fun error(): String? = when {
         name.isBlank() || name.codePointCount(0, name.length) > 24 -> "Use a name of 1–24 characters"
         repetitions !in 0..9999 -> "Use 1–9999 rounds or infinity"
-        durationMs !in MIN_MS..maxDurationMs() -> if (hoursEnabled) "Duration must be 00:00:01–99:59:59" else "Enable Hours for durations above 99:59"
+        // Retain the unused mode's duration without letting it lock the visible editor.
+        durationMs !in MIN_MS..(if (sequence) MAX_HOURS_MS else maxDurationMs()) -> if (hoursEnabled) "Duration must be 00:00:01–99:59:59" else "Enable Hours for durations above 99:59"
         steps.size !in 1..50 -> "Use 1–50 steps"
-        steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..maxDurationMs() } -> "Check step names and durations"
+        steps.any { it.name.isBlank() || it.name.codePointCount(0, it.name.length) > 60 || it.durationMs !in MIN_MS..(if (sequence) maxDurationMs() else MAX_HOURS_MS) } -> "Check step names and durations"
         hapticRepeat == HapticRepeat.CUSTOM && customRepeatCount !in 1..99 -> "Use 1–99 vibration repeats"
         hapticRepeat == HapticRepeat.TIMED && repeatDurationMs !in 1_000..3_600_000 -> "Use a vibration duration of 1–3600 seconds"
         haptic == HapticStyle.MORSE -> Morse.validate(morse)
@@ -112,6 +113,7 @@ sealed interface Command {
     data class Rewind(val id: Int) : Command
     data class Activate(val id: Int, val active: Boolean) : Command
     data class Edit(val definition: Definition) : Command
+    data class SetHours(val id: Int, val enabled: Boolean) : Command
     data class SavePreset(val track: Int, val name: String, val replacingId: String? = null) : Command
     data class RenamePreset(val id: String, val name: String) : Command
     data class DeletePreset(val id: String) : Command
@@ -193,6 +195,13 @@ class TimerEngine(private val newId: () -> String = { UUID.randomUUID().toString
             t.copy(session = it.copy(status = Status.PAUSED, remainingMs = it.remaining(now), revision = it.revision + 1, visualUntilMs = 0))
         } ?: t
         when (command) {
+            is Command.SetHours -> {
+                // Focus loss commits duration first. Read it here, after that queued edit,
+                // instead of replacing it with the UI's pre-commit definition.
+                val current = state.tracks.firstOrNull { it.definition.id == command.id }
+                    ?: return Transition(state, "Timer not found")
+                return apply(state, Command.Edit(current.definition.copy(hoursEnabled = command.enabled)), now)
+            }
             is Command.SavePreset -> {
                 val definition = state.tracks.firstOrNull { it.definition.id == command.track }?.definition
                 error = when {
