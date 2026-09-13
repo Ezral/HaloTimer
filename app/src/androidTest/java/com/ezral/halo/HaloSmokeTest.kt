@@ -292,7 +292,10 @@ class HaloSmokeTest {
         rule.onNodeWithText(Morse.display("SOS")).assertExists()
         screenshot("09-morse-saved")
         // Bring the nested horizontal repeat row into the vertical viewport first.
-        rule.onNodeWithText("Sound & vibration").performScrollTo()
+        rule.onNode(
+            SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange)
+                and hasAnyDescendant(hasText("Custom", substring = false))
+        ).performScrollTo()
         rule.onNodeWithText("Custom", substring = false).performScrollTo().performClick()
         rule.waitUntil(5_000) { c.state.value.tracks[0].definition.hapticRepeat == HapticRepeat.CUSTOM }
         rule.onNodeWithText("Duration", substring = false).performScrollTo().performClick()

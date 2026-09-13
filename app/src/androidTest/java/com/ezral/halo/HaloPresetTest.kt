@@ -30,6 +30,7 @@ class HaloPresetTest {
     private fun execute(command: Command) = runBlocking { withContext(Dispatchers.Main) { c.execute(command) } }
     private fun browse(count: Int = 1) {
         rule.onNodeWithText("Browse presets ($count)").performScrollTo().performClick()
+        rule.onNodeWithText("Saved presets").assertIsDisplayed()
     }
     private fun screenshot(name: String) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
